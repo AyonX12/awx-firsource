@@ -1,0 +1,9 @@
+hosts:
+webservers
+become: yes
+tasks:
+- name: Update apt cache
+apt: update_cache: yes
+- name: Install NGINX
+apt: name: nginx
+state: present
