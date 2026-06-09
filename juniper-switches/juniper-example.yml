@@ -1,9 +1,26 @@
-hosts:
-webservers
-become: yes
-tasks:
-- name: Update apt cache
-apt: update_cache: yes
-- name: Install NGINX
-apt: name: nginx
-state: present
+---
+- name: Consultar información en un switch Juniper
+  hosts: juniper_switches
+  gather_facts: no
+  connection: local
+
+  tasks:
+    - name: Obtener versión del sistema
+      junipernetworks.junos.junos_command:
+        commands:
+          - show version
+      register: version_output
+
+    - name: Mostrar resultado
+      debug:
+        var: version_output
+
+    - name: Obtener información de interfaces
+      junipernetworks.junos.junos_command:
+        commands:
+          - show interfaces terse
+      register: interfaces_output
+
+    - name: Mostrar interfaces
+      debug:
+        var: interfaces_output
