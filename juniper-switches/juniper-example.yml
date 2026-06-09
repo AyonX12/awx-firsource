@@ -1,6 +1,5 @@
 ---
 - name: Consultar información en un switch Juniper
-  hosts: juniper_switches
   gather_facts: no
   connection: local
 
