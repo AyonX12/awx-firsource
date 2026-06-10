@@ -1,8 +1,12 @@
 ---
+
 - name: Consultar información en un switch Juniper
-  hosts: all
-  gather_facts: yes
+  hosts: juniper_switches
+  gather_facts: no
   connection: ansible.netcommon.netconf
+  collections:
+    - junipernetworks.junos
+
   tasks:
     - name: Obtener versión del sistema
       junipernetworks.junos.junos_command:
