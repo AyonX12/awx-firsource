@@ -1,7 +1,7 @@
 ---
 - name: Consultar información en un switch Juniper
   gather_facts: yes
-  hosts: juniper_switches
+  hosts: all
   tasks:
     - name: Obtener versión del sistema
       junipernetworks.junos.junos_command:
