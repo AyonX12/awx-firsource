@@ -1,7 +1,6 @@
 ---
 - name: Consultar información en un switch Juniper
-  gather_facts: no
-  connection: local
+  gather_facts: yes
 
   tasks:
     - name: Obtener versión del sistema
