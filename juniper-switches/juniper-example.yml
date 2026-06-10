@@ -3,9 +3,7 @@
   hosts: juniper_switches
   gather_facts: yes
   connection: ansible.netcommon.netconf
-
   tasks:
-
     - name: Obtener versión del sistema
       junipernetworks.junos.junos_command:
         commands:
