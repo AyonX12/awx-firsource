@@ -1,6 +1,6 @@
 ---
 - name: Consultar información en un switch Juniper
-  hosts: juniper_switches
+  hosts: all
   gather_facts: yes
   connection: ansible.netcommon.netconf
   tasks:
