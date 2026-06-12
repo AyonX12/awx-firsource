@@ -1,6 +1,6 @@
 ---
 - name: Convert Junos interface to trunk and add requested VLAN
-  hosts: 10.113.103.220
+  hosts: all
   gather_facts: false
 
   vars:
