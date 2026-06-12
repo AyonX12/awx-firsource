@@ -1,6 +1,6 @@
 ---
 - name: Convert Junos interface to trunk and add requested VLAN
-  hosts: junos_switches
+  hosts: asw19
   gather_facts: false
 
   vars:
