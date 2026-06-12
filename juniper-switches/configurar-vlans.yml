@@ -1,0 +1,125 @@
+---
+- name: Convert Junos interface to trunk and add requested VLAN
+  hosts: junos_switches
+  gather_facts: false
+
+  vars:
+    interface_unit: 0
+    vlan_name: "vlan{{ vlan_id }}"
+    vlan_description: "Requested by user"
+    replace_allowed_vlans: false
+    enhanced_layer: true
+    native_vlan_id: ""
+
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - interface_name is defined
+          - vlan_id is defined
+          - vlan_id | int >= 1
+          - vlan_id | int <= 4094
+          - interface_name is match('^(ge|xe|et|mge)-[0-9]+/[0-9]+/[0-9]+$|^ae[0-9]+$')
+        fail_msg: >
+          Missing or invalid input. Required example:
+          interface_name=ge-0/0/10 vlan_id=126 vlan_name=vlan126
+
+  tasks:
+    - name: Backup current Junos configuration
+      junipernetworks.junos.junos_config:
+        backup: true
+      register: backup_result
+
+    - name: Ensure requested VLAN exists
+      junipernetworks.junos.junos_vlans:
+        config:
+          - name: "{{ vlan_name }}"
+            vlan_id: "{{ vlan_id | int }}"
+            description: "{{ vlan_description }}"
+        state: merged
+
+    - name: Gather current L2 interface configuration
+      junipernetworks.junos.junos_l2_interfaces:
+        state: gathered
+      register: l2_info
+
+    - name: Get current config for requested interface
+      ansible.builtin.set_fact:
+        current_l2: >-
+          {{
+            (
+              l2_info.gathered
+              | default([])
+              | selectattr('name', 'equalto', interface_name)
+              | list
+              | first
+            )
+            | default({})
+          }}
+
+    - name: Build allowed VLAN list
+      ansible.builtin.set_fact:
+        desired_allowed_vlans: >-
+          {{
+            (
+              [vlan_name]
+              if replace_allowed_vlans | bool
+              else (
+                current_l2.get('trunk', {}).get('allowed_vlans', [])
+                + [vlan_name]
+              )
+            )
+            | unique
+            | list
+          }}
+
+    - name: Build base trunk interface config
+      ansible.builtin.set_fact:
+        desired_l2_interface:
+          name: "{{ interface_name }}"
+          unit: "{{ interface_unit | int }}"
+          enhanced_layer: "{{ enhanced_layer | bool }}"
+          trunk:
+            allowed_vlans: "{{ desired_allowed_vlans }}"
+
+    - name: Preserve or set native VLAN when applicable
+      ansible.builtin.set_fact:
+        desired_native_vlan: >-
+          {{
+            native_vlan_id
+            if native_vlan_id | string | length > 0
+            else current_l2.get('trunk', {}).get('native_vlan', '')
+          }}
+
+    - name: Add native VLAN to desired config
+      ansible.builtin.set_fact:
+        desired_l2_interface: >-
+          {{
+            desired_l2_interface
+            | combine(
+                {
+                  'trunk': {
+                    'native_vlan': desired_native_vlan | string
+                  }
+                },
+                recursive=True
+              )
+          }}
+      when: desired_native_vlan | string | length > 0
+
+    - name: Convert interface to trunk and apply allowed VLANs
+      junipernetworks.junos.junos_l2_interfaces:
+        config:
+          - "{{ desired_l2_interface }}"
+        state: replaced
+      register: trunk_result
+
+    - name: Show result
+      ansible.builtin.debug:
+        msg:
+          - "Backup saved at: {{ backup_result.backup_path | default('N/A') }}"
+          - "Switch: {{ inventory_hostname }}"
+          - "Interface: {{ interface_name }}"
+          - "Mode: trunk"
+          - "Allowed VLANs: {{ desired_allowed_vlans | join(', ') }}"
+          - "Native VLAN: {{ desired_native_vlan if desired_native_vlan | string | length > 0 else 'not configured' }}"
