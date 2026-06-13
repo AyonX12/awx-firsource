@@ -26,9 +26,13 @@
 
   tasks:
     - name: Backup current Junos configuration
-      junipernetworks.junos.junos_config:
-        backup: true
+      junipernetworks.junos.junos_config: 
+       backup: true
+       backup_options:
+          dir_path: "/home/ayonx27/backups/{{ inventory_hostname }}"
+          filename: "{{ inventory_hostname }}_before_vlan_{{ vlan_id }}.conf"
       register: backup_result
+
 
     - name: Ensure requested VLAN exists
       junipernetworks.junos.junos_vlans:
