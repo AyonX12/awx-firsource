@@ -30,8 +30,7 @@
         path: "/home/ayonx27/backups"
         state: directory
         mode: "0775"
-      delegate_to: localhost
-      run_once: true
+    
 
       
     - name: Backup current Junos configuration
@@ -137,5 +136,6 @@
           - "Mode: trunk"
           - "Allowed VLANs: {{ desired_allowed_vlans | join(', ') }}"
           - "Native VLAN: {{ desired_native_vlan if desired_native_vlan | string | length > 0 else 'not configured' }}"
- 
+  delegate_to: localhost
+  run_once: true
 
