@@ -24,23 +24,14 @@
           Missing or invalid input. Required example:
           interface_name=ge-0/0/10 vlan_id=126 vlan_name=vlan126
 
-  tasks:  
-    - name: Create local backup directory
-      ansible.builtin.file:
-        path: "/home/ayonx27/backups"
-        state: directory
-        mode: "0775"
-    
-
-      
+  tasks:
     - name: Backup current Junos configuration
       junipernetworks.junos.junos_config: 
        backup: true
        backup_options:
-          dir_path: "/home/ayonx27/backups"
+          dir_path: "/home/ayonx27/backups/{{ inventory_hostname }}"
           filename: "{{ inventory_hostname }}_before_vlan_{{ vlan_id }}.conf"
       register: backup_result
-    
 
 
     - name: Ensure requested VLAN exists
@@ -136,6 +127,3 @@
           - "Mode: trunk"
           - "Allowed VLANs: {{ desired_allowed_vlans | join(', ') }}"
           - "Native VLAN: {{ desired_native_vlan if desired_native_vlan | string | length > 0 else 'not configured' }}"
-  delegate_to: localhost
-  run_once: true
-
