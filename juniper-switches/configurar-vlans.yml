@@ -31,9 +31,10 @@
        backup_options:
           dir_path: "/home/ayonx27/backups/"
           filename: "{{ inventory_hostname }}_before_vlan_{{ vlan_id }}.conf"
+       delegate_to: localhost
+       become: true
       register: backup_result
-      delegate_to: localhost
-      become: true
+   
 
 
     - name: Ensure requested VLAN exists
