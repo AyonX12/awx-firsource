@@ -41,7 +41,15 @@
          filename: "{{ inventory_hostname }}_before_vlan_{{ vlan_id }}.conf"
       register: backup_result
 
-   
+    - name: List backup directory
+      ansible.builtin.command: "ls -la /tmp/junos_backups/{{ inventory_hostname }}"
+      delegate_to: localhost
+      become: false
+      register: backup_list
+
+    - name: Show backup files
+      ansible.builtin.debug:
+      var: backup_list.stdout_lines
 
 
     - name: Ensure requested VLAN exists
