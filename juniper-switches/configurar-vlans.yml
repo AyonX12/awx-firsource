@@ -25,19 +25,22 @@
           interface_name=ge-0/0/10 vlan_id=126 vlan_name=vlan126
 
   tasks:
-    - name: Show current working directory
-      ansible.builtin.command: pwd
-      delegate_to: localhost
-      become: false
-      register: current_dir
+    - name: Create local backup directory
+      ansible.builtin.file:
+        path: "/tmp/junos_backups/{{ inventory_hostname }}"
+        state: directory
+        mode: "0777"
+        delegate_to: localhost
+        become: false
 
     - name: Backup current Junos configuration
-      junipernetworks.junos.junos_config: 
-       backup: true
-       backup_options:
-         dir_path: "/home/ayonx27/}"
+      junipernetworks.junos.junos_config:
+        backup: true
+        backup_options:
+         dir_path: "/tmp/junos_backups/{{ inventory_hostname }}"
          filename: "{{ inventory_hostname }}_before_vlan_{{ vlan_id }}.conf"
-      register: backup_result
+        register: backup_result
+
    
 
 
