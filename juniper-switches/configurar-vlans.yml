@@ -64,7 +64,7 @@
           --user "{{ ftp_user }}:{{ ftp_password }}"
       delegate_to: localhost
       become: false
-      no_log: true
+  
 
     - name: Confirm FTP upload
       ansible.builtin.debug:
