@@ -34,9 +34,9 @@
     - name: Backup current Junos configuration
       junipernetworks.junos.junos_config: 
        backup: true
-      backup_options:
-        dir_path: "./home/{{ inventory_hostname }}"
-        filename: "{{ inventory_hostname }}_before_vlan_{{ vlan_id }}.conf"
+       backup_options:
+         dir_path: "./home/{{ inventory_hostname }}"
+         filename: "{{ inventory_hostname }}_before_vlan_{{ vlan_id }}.conf"
       register: backup_result
    
 
