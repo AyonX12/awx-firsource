@@ -35,7 +35,7 @@
       junipernetworks.junos.junos_config: 
        backup: true
        backup_options:
-         dir_path: "./home/ayonx27/{{ inventory_hostname }}"
+         dir_path: "/home/ayonx27/}"
          filename: "{{ inventory_hostname }}_before_vlan_{{ vlan_id }}.conf"
       register: backup_result
    
