@@ -61,7 +61,6 @@
           curl --fail --ftp-create-dirs
           -T "{{ backup_result.backup_path }}"
           "ftp://{{ ftp_host }}/juniper/{{ inventory_hostname }}/{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf"
-          --user "{{ ftp_user }}:{{ ftp_password }}"
       delegate_to: localhost
       become: false
   
