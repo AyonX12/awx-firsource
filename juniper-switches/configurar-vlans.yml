@@ -38,8 +38,8 @@
    
     - name: Pause job to inspect execution environment
       ansible.builtin.pause:
-      prompt: "Job paused. Inspect /runner/project/juniper-switches/backup from the execution pod."
-      minutes: 10
+       prompt: "Job paused. Inspect /runner/project/juniper-switches/backup from the execution pod."
+       minutes: 10
 
     - name: Backup current Junos configuration
       junipernetworks.junos.junos_config: 
