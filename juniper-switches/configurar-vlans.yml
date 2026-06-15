@@ -149,12 +149,6 @@
           }}
       when: desired_native_vlan | string | length > 0
 
-    - name: Convert interface to trunk and apply allowed VLANs
-      junipernetworks.junos.junos_l2_interfaces:
-        config:
-          - "{{ desired_l2_interface }}"
-        state: replaced
-      register: trunk_result
 
     - name: Show result
       ansible.builtin.debug:
