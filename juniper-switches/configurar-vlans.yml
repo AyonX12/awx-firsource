@@ -58,10 +58,9 @@
 
     - name: Upload Junos backup to FTP server
       ansible.builtin.command: >
-          curl --fail --ftp-create-dirs
+          curl --fail  --show-error
           -T "{{ backup_result.backup_path }}"
           "tftp://{{ ftp_host }}/juniper/{{ inventory_hostname }}/{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf"
-          --user "{{ ftp_user }}:{{ ftp_password }}"
       delegate_to: localhost
       become: false
   
