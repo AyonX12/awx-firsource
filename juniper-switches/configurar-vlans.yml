@@ -49,7 +49,7 @@
 
     - name: Show backup files
       ansible.builtin.debug:
-      var: backup_list.stdout_lines
+        var: backup_list.stdout_lines
 
 
     - name: Ensure requested VLAN exists
