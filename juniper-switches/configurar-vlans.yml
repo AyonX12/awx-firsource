@@ -35,15 +35,7 @@
       ansible.builtin.debug:
          msg: "AWX/Ansible is running from: {{ current_dir.stdout }}"
 
-    - name: Check current working directory
-      ansible.builtin.command: pwd
-      delegate_to: localhost
-      register: current_dir
 
-    - name: Show current working directory
-      ansible.builtin.debug:
-        msg: "Current playbook directory is: {{ current_dir.stdout }}"
-    
     - name: Backup current Junos configuration
       junipernetworks.junos.junos_config: 
        backup: true
