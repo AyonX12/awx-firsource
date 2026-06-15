@@ -39,7 +39,7 @@
         backup_options:
          dir_path: "/tmp/junos_backups/{{ inventory_hostname }}"
          filename: "{{ inventory_hostname }}_before_vlan_{{ vlan_id }}.conf"
-        register: backup_result
+      register: backup_result
 
    
 
