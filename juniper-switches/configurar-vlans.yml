@@ -31,7 +31,7 @@
 
     - name: Create local backup directory inside AWX execution pod
       ansible.builtin.file:
-          path: "{{ local_backup_path }}/{{ inventory_hostname }}"
+          path: "/tmp/junos_backups/{{ inventory_hostname }}"
           state: directory
           mode: "0777"
       delegate_to: localhost
@@ -41,36 +41,36 @@
       junipernetworks.junos.junos_config:
           backup: true
           backup_options:
-            dir_path: "{{ local_backup_path }}/{{ inventory_hostname }}"
+            dir_path: "/tmp/junos_backups/{{ inventory_hostname }}"
             filename: "{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf"
       register: backup_result
 
     - name: Show local backup path
       ansible.builtin.debug:
-        msg: "Local backup created at: {{ backup_result.backup_path }}"
+          msg: "Local backup created at: {{ backup_result.backup_path }}"
 
-    - name: Create remote backup directory on SFTP server
-      ansible.builtin.file:
-          path: "{{ sftp_backup_path }}/{{ inventory_hostname }}"
-          state: directory
-          mode: "0775"
-      delegate_to: "{{ sftp_backup_host }}"
+    - name: Test curl exists in AWX execution environment
+      ansible.builtin.command: curl --version
+      delegate_to: localhost
       become: false
+      register: curl_check
+      changed_when: false
 
-    - name: Copy Junos backup to SFTP server
-      ansible.builtin.copy:
-          src: "{{ backup_result.backup_path }}"
-          dest: "{{ sftp_backup_path }}/{{ inventory_hostname }}/{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf"
-          mode: "0664"
-      delegate_to: "{{ sftp_backup_host }}"
+    - name: Upload Junos backup to FTP server
+      ansible.builtin.command: >
+          curl --fail --ftp-create-dirs
+          -T "{{ backup_result.backup_path }}"
+          "ftp://{{ ftp_host }}/juniper/{{ inventory_hostname }}/{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf"
+          --user "{{ ftp_user }}:{{ ftp_password }}"
+      delegate_to: localhost
       become: false
+      no_log: true
 
-    - name: Confirm backup copied to SFTP server
+    - name: Confirm FTP upload
       ansible.builtin.debug:
-        msg:
-            - "Backup copied to SFTP server:"
-            - "{{ sftp_backup_host }}:{{ sftp_backup_path }}/{{ inventory_hostname }}/{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf"
-
+          msg:
+            - "Backup uploaded to FTP:"
+            - "ftp://{{ ftp_host }}/juniper/{{ inventory_hostname }}/{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf"
 
     - name: Ensure requested VLAN exists
       junipernetworks.junos.junos_vlans:
