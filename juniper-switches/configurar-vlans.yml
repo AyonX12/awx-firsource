@@ -25,6 +25,15 @@
           interface_name=ge-0/0/10 vlan_id=126 vlan_name=vlan126
 
   tasks:
+    - name: Show current working directory
+      ansible.builtin.command: pwd
+      delegate_to: localhost
+      register: current_dir
+
+    - name: Print current working directory
+      ansible.builtin.debug:
+         msg: "AWX/Ansible is running from: {{ current_dir.stdout }}"
+
     - name: Check current working directory
       ansible.builtin.command: pwd
       delegate_to: localhost
