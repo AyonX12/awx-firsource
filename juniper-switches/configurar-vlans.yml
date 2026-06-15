@@ -25,31 +25,51 @@
           interface_name=ge-0/0/10 vlan_id=126 vlan_name=vlan126
 
   tasks:
-    - name: Create local backup directory
+    - name: Set backup timestamp
+      ansible.builtin.set_fact:
+          backup_timestamp: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+
+    - name: Create local backup directory inside AWX execution pod
       ansible.builtin.file:
-        path: "/tmp/junos_backups/{{ inventory_hostname }}"
-        state: directory
-        mode: "0777"
+          path: "{{ local_backup_path }}/{{ inventory_hostname }}"
+          state: directory
+          mode: "0777"
       delegate_to: localhost
       become: false
 
-    - name: Backup current Junos configuration
+    - name: Backup current Junos configuration locally inside AWX execution pod
       junipernetworks.junos.junos_config:
-        backup: true
-        backup_options:
-         dir_path: "/tmp/junos_backups/{{ inventory_hostname }}"
-         filename: "{{ inventory_hostname }}_before_vlan_{{ vlan_id }}.conf"
+          backup: true
+          backup_options:
+            dir_path: "{{ local_backup_path }}/{{ inventory_hostname }}"
+            filename: "{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf"
       register: backup_result
 
-    - name: List backup directory
-      ansible.builtin.command: "ls -la /tmp/junos_backups/{{ inventory_hostname }}"
-      delegate_to: localhost
-      become: false
-      register: backup_list
-
-    - name: Show backup files
+    - name: Show local backup path
       ansible.builtin.debug:
-        var: backup_list.stdout_lines
+        msg: "Local backup created at: {{ backup_result.backup_path }}"
+
+    - name: Create remote backup directory on SFTP server
+      ansible.builtin.file:
+          path: "{{ sftp_backup_path }}/{{ inventory_hostname }}"
+          state: directory
+          mode: "0775"
+      delegate_to: "{{ sftp_backup_host }}"
+      become: false
+
+    - name: Copy Junos backup to SFTP server
+      ansible.builtin.copy:
+          src: "{{ backup_result.backup_path }}"
+          dest: "{{ sftp_backup_path }}/{{ inventory_hostname }}/{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf"
+          mode: "0664"
+      delegate_to: "{{ sftp_backup_host }}"
+      become: false
+
+    - name: Confirm backup copied to SFTP server
+      ansible.builtin.debug:
+        msg:
+            - "Backup copied to SFTP server:"
+            - "{{ sftp_backup_host }}:{{ sftp_backup_path }}/{{ inventory_hostname }}/{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf"
 
 
     - name: Ensure requested VLAN exists
