@@ -28,6 +28,7 @@
     - name: Show current working directory
       ansible.builtin.command: pwd
       delegate_to: localhost
+      become: false
       register: current_dir
 
     - name: Print current working directory
