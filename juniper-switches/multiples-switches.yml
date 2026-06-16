@@ -1,7 +1,6 @@
 ---
----
 - name: Allow requested VLANs on selected Junos trunk ports
-  hosts: "asw-35th"
+  hosts: all
   gather_facts: false
 
   vars:
