@@ -2,13 +2,6 @@
 - name: Allow requested VLANs on selected Junos ports
   hosts: all
   gather_facts: false
-
-  vars:
-    interface_unit: 0
-    vlan_name_prefix: "vlan"
-    interface_mode: "trunk"
-    reset_access_members: true
-
   pre_tasks:
     - name: Validate required variables
       ansible.builtin.assert:
@@ -68,12 +61,45 @@
       loop: "{{ interface_list }}"
 
   tasks:
-    - name: Build VLAN creation lines
+    - name: Get current VLAN configuration
+      junipernetworks.junos.junos_command:
+        commands:
+          - show configuration vlans
+        display: set
+      register: current_vlans_config
+
+    - name: Convert VLAN config output to text
+      ansible.builtin.set_fact:
+        current_vlans_text: "{{ current_vlans_config.stdout_lines[0] | default([]) | join('\n') }}"
+
+    - name: Detect existing VLAN IDs
+      ansible.builtin.set_fact:
+        existing_vlan_ids: >-
+          {{
+            current_vlans_text
+            | regex_findall('set vlans\\s+\\S+\\s+vlan-id\\s+(\\d+)')
+            | list
+          }}
+
+    - name: Detect missing VLAN IDs
+      ansible.builtin.set_fact:
+        missing_vlan_ids: "{{ vlan_list | difference(existing_vlan_ids) }}"
+
+    - name: Show VLAN validation result
+      ansible.builtin.debug:
+        msg:
+          - "Switch: {{ inventory_hostname }}"
+          - "Requested VLANs: {{ vlan_list | join(', ') }}"
+          - "Existing VLANs from request: {{ vlan_list | intersect(existing_vlan_ids) | join(', ') if vlan_list | intersect(existing_vlan_ids) | length > 0 else 'None' }}"
+          - "Missing VLANs that will be created: {{ missing_vlan_ids | join(', ') if missing_vlan_ids | length > 0 else 'None' }}"
+
+    - name: Build VLAN creation lines only for missing VLANs
       ansible.builtin.set_fact:
         vlan_config_lines: "{{ vlan_config_lines | default([]) + [
           'set vlans ' ~ vlan_name_prefix ~ item ~ ' vlan-id ' ~ item
         ] }}"
-      loop: "{{ vlan_list }}"
+      loop: "{{ missing_vlan_ids }}"
+      when: missing_vlan_ids | length > 0
 
     - name: Build interface mode lines
       ansible.builtin.set_fact:
@@ -85,7 +111,8 @@
     - name: Build access cleanup lines
       ansible.builtin.set_fact:
         access_cleanup_lines: "{{ access_cleanup_lines | default([]) + [
-          'delete interfaces ' ~ item ~ ' unit ' ~ interface_unit ~ ' family ethernet-switching vlan members'
+          'delete interfaces ' ~ item ~ ' unit ' ~ interface_unit ~ ' family ethernet-switching vlan members',
+          'delete interfaces ' ~ item ~ ' unit ' ~ interface_unit ~ ' family ethernet-switching native-vlan-id'
         ] }}"
       loop: "{{ interface_list }}"
       when:
@@ -103,7 +130,7 @@
       ansible.builtin.set_fact:
         final_config_lines: >-
           {{
-            vlan_config_lines
+            (vlan_config_lines | default([]))
             + (access_cleanup_lines | default([]))
             + interface_mode_lines
             + vlan_member_lines
@@ -115,14 +142,18 @@
           - "Switch: {{ inventory_hostname }}"
           - "Interface mode: {{ selected_interface_mode }}"
           - "Interfaces: {{ interface_list }}"
-          - "VLANs: {{ vlan_list }}"
+          - "Requested VLANs: {{ vlan_list }}"
+          - "Existing VLANs: {{ vlan_list | intersect(existing_vlan_ids) }}"
+          - "New VLANs to create: {{ missing_vlan_ids }}"
           - "Config lines:"
           - "{{ final_config_lines }}"
 
     - name: Apply VLANs to selected ports
       junipernetworks.junos.junos_config:
         lines: "{{ final_config_lines }}"
-        comment: "Configured VLANs {{ vlan_list | join(',') }} on {{ selected_interface_mode }} ports via AWX"
+        comment: >-
+          Configured VLANs {{ vlan_list | join(',') }} on {{ selected_interface_mode }} ports via AWX.
+          Created VLANs: {{ missing_vlan_ids | join(',') if missing_vlan_ids | length > 0 else 'none' }}.
       register: config_result
 
     - name: Show result
@@ -130,5 +161,7 @@
         msg:
           - "Switch: {{ inventory_hostname }}"
           - "Mode configured: {{ selected_interface_mode }}"
-          - "VLANs allowed: {{ vlan_list | join(', ') }}"
+          - "VLANs requested: {{ vlan_list | join(', ') }}"
+          - "VLANs already existing: {{ vlan_list | intersect(existing_vlan_ids) | join(', ') if vlan_list | intersect(existing_vlan_ids) | length > 0 else 'None' }}"
+          - "VLANs created: {{ missing_vlan_ids | join(', ') if missing_vlan_ids | length > 0 else 'None' }}"
           - "Interfaces updated: {{ interface_list | join(', ') }}"
