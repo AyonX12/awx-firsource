@@ -82,6 +82,5 @@
       ansible.builtin.debug:
         msg:
           - "Switch: {{ inventory_hostname }}"
-          - "Backup saved at: {{ backup_result.backup_path }}"
           - "VLANs allowed: {{ vlan_list | join(', ') }}"
           - "Interfaces updated: {{ interface_list | join(', ') }}"
