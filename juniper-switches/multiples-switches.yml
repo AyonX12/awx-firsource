@@ -3,15 +3,6 @@
   hosts: all
   gather_facts: false
 
-  vars:
-    interface_unit: 0
-    local_backup_path: "/tmp/junos_backups"
-
-    # Variables esperadas desde AWX Survey:
-    # vlans_to_add: "5,126"
-    # interfaces_to_update: "ge-0/0/10,ge-0/0/11"
-    # vlan_name_prefix: "vlan"
-
 
   pre_tasks:
     - name: Validate required variables
