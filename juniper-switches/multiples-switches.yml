@@ -169,15 +169,16 @@
 
     - name: Show configuration that will be applied
       ansible.builtin.debug:
-        msg:
-          - "Switch: {{ inventory_hostname }}"
-          - "Interface mode: {{ selected_interface_mode }}"
-          - "Interfaces: {{ interface_list }}"
-          - "Requested VLANs: {{ vlan_list }}"
-          - "Existing VLANs: {{ vlan_list | intersect(existing_vlan_ids) }}"
-          - "New VLANs to create: {{ missing_vlan_ids }}"
-          - "Config lines:"
-          - "{{ final_config_lines }}"
+          msg:
+            - "Switch: {{ inventory_hostname }}"
+            - "Interface mode: {{ selected_interface_mode }}"
+            - "Interfaces: {{ interface_list }}"
+            - "Requested VLAN IDs: {{ vlan_list }}"
+            - "VLAN names that will be used: {{ requested_vlan_name_map }}"
+            - "Existing VLAN ID to name map: {{ vlan_id_name_map }}"
+            - "New VLANs to create: {{ missing_vlan_ids if missing_vlan_ids | length > 0 else 'None' }}"
+            - "Config lines:"
+            - "{{ final_config_lines }}"
 
     - name: Apply VLANs to selected ports
       junipernetworks.junos.junos_config:
@@ -189,10 +190,10 @@
 
     - name: Show result
       ansible.builtin.debug:
-        msg:
-          - "Switch: {{ inventory_hostname }}"
-          - "Mode configured: {{ selected_interface_mode }}"
-          - "VLANs requested: {{ vlan_list | join(', ') }}"
-          - "VLANs already existing: {{ vlan_list | intersect(existing_vlan_ids) | join(', ') if vlan_list | intersect(existing_vlan_ids) | length > 0 else 'None' }}"
-          - "VLANs created: {{ missing_vlan_ids | join(', ') if missing_vlan_ids | length > 0 else 'None' }}"
-          - "Interfaces updated: {{ interface_list | join(', ') }}"
+          msg:
+            - "Switch: {{ inventory_hostname }}"
+            - "Mode configured: {{ selected_interface_mode }}"
+            - "VLAN IDs requested: {{ vlan_list | join(', ') }}"
+            - "VLAN names used: {{ requested_vlan_name_map }}"
+            - "VLANs created: {{ missing_vlan_ids | join(', ') if missing_vlan_ids | length > 0 else 'None' }}"
+            - "Interfaces updated: {{ interface_list | join(', ') }}"
