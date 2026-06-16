@@ -70,6 +70,10 @@
           msg:
             - "Backup uploaded to FTP:"
             - "tftp://{{ ftp_host }}/juniper/{{ inventory_hostname }}/{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf"
+            
+      delegate_to: localhost
+      become: false
+
 
     - name: Ensure requested VLAN exists
       junipernetworks.junos.junos_vlans:
