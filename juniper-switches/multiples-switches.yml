@@ -70,10 +70,10 @@
       loop: "{{ interface_list }}"
 
   tasks:
-    - name: Get current VLAN configuration in set format
+    - name: Get current VLAN configuration
       junipernetworks.junos.junos_command:
         commands:
-          - show configuration vlans | display set
+          - show configuration vlans
       register: current_vlans_config
 
     - name: Convert VLAN config output to text
@@ -89,12 +89,12 @@
         interface_mode_lines: []
         vlan_member_lines: []
 
-    - name: Detect existing VLAN name and ID pairs from config
+    - name: Detect existing VLAN name and ID pairs from Junos hierarchy
       ansible.builtin.set_fact:
         existing_vlan_pairs: >-
           {{
             current_vlans_text
-            | regex_findall('set vlans\\s+(\\S+)\\s+vlan-id\\s+(\\d+)')
+            | regex_findall('(?ms)^\\s*(\\S+)\\s*\\{\\s*.*?vlan-id\\s+(\\d+)\\s*;')
             | list
           }}
 
@@ -126,7 +126,7 @@
         msg:
           - "Switch: {{ inventory_hostname }}"
           - "Requested VLAN IDs: {{ vlan_list | join(', ') }}"
-          - "Existing VLAN ID to name map: {{ vlan_id_name_map }}"
+          - "Detected existing VLAN ID to name map: {{ vlan_id_name_map }}"
           - "Requested VLAN names to use: {{ requested_vlan_name_map }}"
           - "Missing VLANs that will be created: {{ missing_vlan_ids | join(', ') if missing_vlan_ids | length > 0 else 'None' }}"
 
