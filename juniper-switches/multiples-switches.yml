@@ -69,7 +69,6 @@
           - "Switch: {{ inventory_hostname }}"
           - "Interfaces: {{ interface_list }}"
           - "VLANs: {{ vlan_list }}"
-          - "Backup: {{ backup_result.backup_path }}"
           - "Config lines:"
           - "{{ vlan_config_lines + trunk_mode_lines + vlan_member_lines }}"
 
