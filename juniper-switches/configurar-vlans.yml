@@ -61,7 +61,7 @@
       ansible.builtin.command: >
         tftp {{ ftp_host }} -m binary -c put
         {{ backup_result.backup_path }}
-        juniper/{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf
+        C:/TFTP-Root/juniper/juniper/{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf
       delegate_to: localhost
       become: false
 
@@ -72,7 +72,7 @@
       ansible.builtin.debug:
           msg:
             - "Backup uploaded to FTP:"
-            - "tftp://{{ ftp_host }}/juniper/{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf"
+            - "tftp://{{ ftp_host }}/juniper/{{ inventory_hostname }}/{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf"
             
       delegate_to: localhost
       become: false
