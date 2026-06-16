@@ -1,8 +1,13 @@
 ---
-- name: Allow requested VLANs on selected Junos trunk ports
+- name: Allow requested VLANs on selected Junos ports
   hosts: all
   gather_facts: false
 
+  vars:
+    interface_unit: 0
+    vlan_name_prefix: "vlan"
+    interface_mode: "trunk"
+    reset_access_members: true
 
   pre_tasks:
     - name: Validate required variables
@@ -17,6 +22,17 @@
           Example:
           vlans_to_add="5,126"
           interfaces_to_update="ge-0/0/10,ge-0/0/11"
+          interface_mode="trunk"
+
+    - name: Normalize interface mode
+      ansible.builtin.set_fact:
+        selected_interface_mode: "{{ interface_mode | lower | trim }}"
+
+    - name: Validate interface mode
+      ansible.builtin.assert:
+        that:
+          - selected_interface_mode in ['trunk', 'access']
+        fail_msg: 'Invalid interface_mode. Valid options are: trunk or access.'
 
     - name: Convert VLAN input string to list
       ansible.builtin.set_fact:
@@ -25,6 +41,16 @@
     - name: Convert interface input string to list
       ansible.builtin.set_fact:
         interface_list: "{{ interfaces_to_update.split(',') | map('trim') | list }}"
+
+    - name: Validate access mode only has one VLAN
+      ansible.builtin.assert:
+        that:
+          - selected_interface_mode != 'access' or vlan_list | length == 1
+        fail_msg: >
+          Access mode only supports one VLAN.
+          Example:
+          vlans_to_add="5"
+          interface_mode="access"
 
     - name: Validate VLAN IDs
       ansible.builtin.assert:
@@ -49,12 +75,22 @@
         ] }}"
       loop: "{{ vlan_list }}"
 
-    - name: Build trunk interface lines
+    - name: Build interface mode lines
       ansible.builtin.set_fact:
-        trunk_mode_lines: "{{ trunk_mode_lines | default([]) + [
-          'set interfaces ' ~ item ~ ' unit ' ~ interface_unit ~ ' family ethernet-switching interface-mode trunk'
+        interface_mode_lines: "{{ interface_mode_lines | default([]) + [
+          'set interfaces ' ~ item ~ ' unit ' ~ interface_unit ~ ' family ethernet-switching interface-mode ' ~ selected_interface_mode
         ] }}"
       loop: "{{ interface_list }}"
+
+    - name: Build access cleanup lines
+      ansible.builtin.set_fact:
+        access_cleanup_lines: "{{ access_cleanup_lines | default([]) + [
+          'delete interfaces ' ~ item ~ ' unit ' ~ interface_unit ~ ' family ethernet-switching vlan members'
+        ] }}"
+      loop: "{{ interface_list }}"
+      when:
+        - selected_interface_mode == 'access'
+        - reset_access_members | bool
 
     - name: Build VLAN member lines for selected interfaces
       ansible.builtin.set_fact:
@@ -63,24 +99,36 @@
         ] }}"
       loop: "{{ interface_list | product(vlan_list) | list }}"
 
+    - name: Build final configuration lines
+      ansible.builtin.set_fact:
+        final_config_lines: >-
+          {{
+            vlan_config_lines
+            + (access_cleanup_lines | default([]))
+            + interface_mode_lines
+            + vlan_member_lines
+          }}
+
     - name: Show configuration that will be applied
       ansible.builtin.debug:
         msg:
           - "Switch: {{ inventory_hostname }}"
+          - "Interface mode: {{ selected_interface_mode }}"
           - "Interfaces: {{ interface_list }}"
           - "VLANs: {{ vlan_list }}"
           - "Config lines:"
-          - "{{ vlan_config_lines + trunk_mode_lines + vlan_member_lines }}"
+          - "{{ final_config_lines }}"
 
-    - name: Apply VLANs to selected trunk ports
+    - name: Apply VLANs to selected ports
       junipernetworks.junos.junos_config:
-        lines: "{{ vlan_config_lines + trunk_mode_lines + vlan_member_lines }}"
-        comment: "Allowed VLANs {{ vlan_list | join(',') }} on selected trunk ports via AWX"
+        lines: "{{ final_config_lines }}"
+        comment: "Configured VLANs {{ vlan_list | join(',') }} on {{ selected_interface_mode }} ports via AWX"
       register: config_result
 
     - name: Show result
       ansible.builtin.debug:
         msg:
           - "Switch: {{ inventory_hostname }}"
+          - "Mode configured: {{ selected_interface_mode }}"
           - "VLANs allowed: {{ vlan_list | join(', ') }}"
           - "Interfaces updated: {{ interface_list | join(', ') }}"
