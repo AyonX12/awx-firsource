@@ -95,7 +95,7 @@
     - name: Build VLAN creation lines only for missing VLANs
       ansible.builtin.set_fact:
         vlan_config_lines: "{{ vlan_config_lines | default([]) + [
-          'set vlans ' ~ vlan_name_prefix ~ item ~ ' vlan-id ' ~ item
+          'set vlans ' ~ requested_vlan_name_map[item] ~ ' vlan-id ' ~ item
         ] }}"
       loop: "{{ missing_vlan_ids }}"
       when: missing_vlan_ids | length > 0
@@ -121,9 +121,10 @@
     - name: Build VLAN member lines for selected interfaces
       ansible.builtin.set_fact:
         vlan_member_lines: "{{ vlan_member_lines | default([]) + [
-          'set interfaces ' ~ item.0 ~ ' unit ' ~ interface_unit ~ ' family ethernet-switching vlan members ' ~ item.1
+          'set interfaces ' ~ item.0 ~ ' unit ' ~ interface_unit ~ ' family ethernet-switching vlan members ' ~ requested_vlan_name_map[item.1]
         ] }}"
       loop: "{{ interface_list | product(vlan_list) | list }}"
+    
 
     - name: Build final configuration lines
       ansible.builtin.set_fact:
@@ -151,7 +152,7 @@
       junipernetworks.junos.junos_config:
         lines: "{{ final_config_lines }}"
         comment: >-
-          Configured VLANs {{ vlan_list | join(',') }} on {{ selected_interface_mode }} ports via AWX.
+          Configured VLAN IDs {{ vlan_list | join(',') }} on {{ selected_interface_mode }} ports via AWX.
           Created VLANs: {{ missing_vlan_ids | join(',') if missing_vlan_ids | length > 0 else 'none' }}.
       register: config_result
 
