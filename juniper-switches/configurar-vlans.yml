@@ -25,58 +25,6 @@
           interface_name=ge-0/0/10 vlan_id=126 vlan_name=vlan126
 
   tasks:
-    - name: Set backup timestamp
-      ansible.builtin.set_fact:
-          backup_timestamp: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
-
-    - name: Create local backup directory inside AWX execution pod
-      ansible.builtin.file:
-          path: "/tmp/junos_backups/{{ inventory_hostname }}"
-          state: directory
-          mode: "0777"
-      delegate_to: localhost
-      become: false
-
-    - name: Backup current Junos configuration locally inside AWX execution pod
-      junipernetworks.junos.junos_config:
-          backup: true
-          backup_options:
-            dir_path: "/tmp/junos_backups/{{ inventory_hostname }}"
-            filename: "{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf"
-      register: backup_result
-
-    - name: Show local backup path
-      ansible.builtin.debug:
-          msg: "Local backup created at: {{ backup_result.backup_path }}"
-
-    - name: Test curl exists in AWX execution environment
-      ansible.builtin.command: curl --version
-      delegate_to: localhost
-      become: false
-      register: curl_check
-      changed_when: false
-
-    
-    - name: Upload Junos backup to TFTP server
-      ansible.builtin.command: >
-        tftp {{ ftp_host }} -m binary -c put
-        {{ backup_result.backup_path }}
-        juniper/{{ inventory_hostname }}/{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf
-      delegate_to: localhost
-      become: false
-
-
-  
-
-    - name: Confirm FTP upload
-      ansible.builtin.debug:
-          msg:
-            - "Backup uploaded to FTP:"
-            - "tftp://{{ ftp_host }}/juniper/{{ inventory_hostname }}/{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf"
-            
-      delegate_to: localhost
-      become: false
-
 
     - name: Ensure requested VLAN exists
       junipernetworks.junos.junos_vlans:
