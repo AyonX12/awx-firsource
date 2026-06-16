@@ -65,21 +65,20 @@
       junipernetworks.junos.junos_command:
         commands:
           - show configuration vlans
-        display: set
       register: current_vlans_config
 
     - name: Convert VLAN config output to text
       ansible.builtin.set_fact:
-        current_vlans_text: "{{ current_vlans_config.stdout_lines[0] | default([]) | join('\n') }}"
+           current_vlans_text: "{{ current_vlans_config.stdout[0] | default('') }}"
 
     - name: Detect existing VLAN IDs
       ansible.builtin.set_fact:
         existing_vlan_ids: >-
-          {{
-            current_vlans_text
-            | regex_findall('set vlans\\s+\\S+\\s+vlan-id\\s+(\\d+)')
-            | list
-          }}
+         {{
+           current_vlans_text
+          | regex_findall('vlan-id\\s+(\\d+)')
+          | list
+         }}
 
     - name: Detect missing VLAN IDs
       ansible.builtin.set_fact:
