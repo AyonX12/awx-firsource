@@ -61,7 +61,7 @@
       ansible.builtin.command: >
         tftp {{ ftp_host }} -m binary -c put
         {{ backup_result.backup_path }}
-        juniper/{{ inventory_hostname }}/{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf
+        juniper/{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf
       delegate_to: localhost
       become: false
 
