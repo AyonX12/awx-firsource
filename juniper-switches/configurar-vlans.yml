@@ -56,13 +56,16 @@
       register: curl_check
       changed_when: false
 
-    - name: Upload Junos backup to FTP server
+    
+    - name: Upload Junos backup to TFTP server
       ansible.builtin.command: >
-          curl --fail  --show-error
-          -T "{{ backup_result.backup_path }}"
-          "tftp://{{ ftp_host }}/juniper/{{ inventory_hostname }}/{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf"
+        tftp {{ ftp_host }} -m binary -c put
+        {{ backup_result.backup_path }}
+        juniper/{{ inventory_hostname }}/{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf
       delegate_to: localhost
       become: false
+
+
   
 
     - name: Confirm FTP upload
