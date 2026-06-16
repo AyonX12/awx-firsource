@@ -13,7 +13,6 @@
     # interfaces_to_update: "ge-0/0/10,ge-0/0/11"
     # vlan_name_prefix: "vlan"
 
-    vlan_name_prefix: "vlan"
 
   pre_tasks:
     - name: Validate required variables
