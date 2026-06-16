@@ -2,6 +2,15 @@
 - name: Allow requested VLANs on selected Junos ports
   hosts: all
   gather_facts: false
+
+  vars:
+    interface_unit: 0
+    vlan_name_prefix: "vlan"
+    interface_mode: "trunk"
+    reset_access_members: true
+    ansible_command_timeout: 120
+    ansible_connect_timeout: 60
+
   pre_tasks:
     - name: Validate required variables
       ansible.builtin.assert:
@@ -19,7 +28,7 @@
 
     - name: Normalize interface mode
       ansible.builtin.set_fact:
-        selected_interface_mode: "{{ interface_mode | lower | trim }}"
+        selected_interface_mode: "{{ interface_mode | default('trunk') | lower | trim }}"
 
     - name: Validate interface mode
       ansible.builtin.assert:
@@ -61,29 +70,33 @@
       loop: "{{ interface_list }}"
 
   tasks:
-    - name: Get current VLAN operational table
+    - name: Get current VLAN configuration in set format
       junipernetworks.junos.junos_command:
         commands:
-          - show vlans
-      register: current_vlans_output
+          - show configuration vlans | display set
+      register: current_vlans_config
 
-    - name: Convert VLAN operational output to text
+    - name: Convert VLAN config output to text
       ansible.builtin.set_fact:
-        current_vlans_text: "{{ current_vlans_output.stdout[0] | default('') }}"
+        current_vlans_text: "{{ current_vlans_config.stdout[0] | default('') }}"
 
-    - name: Detect existing VLAN name and ID pairs
+    - name: Initialize configuration variables
+      ansible.builtin.set_fact:
+        vlan_id_name_map: {}
+        requested_vlan_name_map: {}
+        vlan_config_lines: []
+        access_cleanup_lines: []
+        interface_mode_lines: []
+        vlan_member_lines: []
+
+    - name: Detect existing VLAN name and ID pairs from config
       ansible.builtin.set_fact:
         existing_vlan_pairs: >-
           {{
             current_vlans_text
-            | regex_findall('(?m)^\\s*(?:\\S+\\s+)?(\\S+)\\s+(\\d+)\\s*(?:$|\\s+)')
+            | regex_findall('set vlans\\s+(\\S+)\\s+vlan-id\\s+(\\d+)')
             | list
           }}
-
-    - name: Initialize VLAN maps
-      ansible.builtin.set_fact:
-        vlan_id_name_map: {}
-        requested_vlan_name_map: {}
 
     - name: Build VLAN ID to name map
       ansible.builtin.set_fact:
@@ -119,13 +132,7 @@
 
     - name: Build VLAN creation lines only for missing VLANs
       ansible.builtin.set_fact:
-        vlan_config_lines: "{{ vlan_config_lines | default([]) + [
-          'set vlans ' ~ requested_vlan_name_map[item] ~ ' vlan-id ' ~ item
-        ] }}"
-      loop: "{{ missing_vlan_ids }}"
-      when: missing_vlan_ids | length > 0
-      ansible.builtin.set_fact:
-        vlan_config_lines: "{{ vlan_config_lines | default([]) + [
+        vlan_config_lines: "{{ vlan_config_lines + [
           'set vlans ' ~ requested_vlan_name_map[item] ~ ' vlan-id ' ~ item
         ] }}"
       loop: "{{ missing_vlan_ids }}"
@@ -133,52 +140,51 @@
 
     - name: Build interface mode lines
       ansible.builtin.set_fact:
-        interface_mode_lines: "{{ interface_mode_lines | default([]) + [
+        interface_mode_lines: "{{ interface_mode_lines + [
           'set interfaces ' ~ item ~ ' unit ' ~ interface_unit ~ ' family ethernet-switching interface-mode ' ~ selected_interface_mode
         ] }}"
       loop: "{{ interface_list }}"
 
     - name: Build access cleanup lines
       ansible.builtin.set_fact:
-        access_cleanup_lines: "{{ access_cleanup_lines | default([]) + [
+        access_cleanup_lines: "{{ access_cleanup_lines + [
           'delete interfaces ' ~ item ~ ' unit ' ~ interface_unit ~ ' family ethernet-switching vlan members',
           'delete interfaces ' ~ item ~ ' unit ' ~ interface_unit ~ ' family ethernet-switching native-vlan-id'
         ] }}"
       loop: "{{ interface_list }}"
       when:
         - selected_interface_mode == 'access'
-        - reset_access_members | bool
+        - reset_access_members | default(true) | bool
 
     - name: Build VLAN member lines for selected interfaces
       ansible.builtin.set_fact:
-        vlan_member_lines: "{{ vlan_member_lines | default([]) + [
+        vlan_member_lines: "{{ vlan_member_lines + [
           'set interfaces ' ~ item.0 ~ ' unit ' ~ interface_unit ~ ' family ethernet-switching vlan members ' ~ requested_vlan_name_map[item.1]
         ] }}"
       loop: "{{ interface_list | product(vlan_list) | list }}"
-    
 
     - name: Build final configuration lines
       ansible.builtin.set_fact:
         final_config_lines: >-
           {{
-            (vlan_config_lines | default([]))
-            + (access_cleanup_lines | default([]))
+            vlan_config_lines
+            + access_cleanup_lines
             + interface_mode_lines
             + vlan_member_lines
           }}
 
     - name: Show configuration that will be applied
       ansible.builtin.debug:
-          msg:
-            - "Switch: {{ inventory_hostname }}"
-            - "Interface mode: {{ selected_interface_mode }}"
-            - "Interfaces: {{ interface_list }}"
-            - "Requested VLAN IDs: {{ vlan_list }}"
-            - "VLAN names that will be used: {{ requested_vlan_name_map }}"
-            - "Existing VLAN ID to name map: {{ vlan_id_name_map }}"
-            - "New VLANs to create: {{ missing_vlan_ids if missing_vlan_ids | length > 0 else 'None' }}"
-            - "Config lines:"
-            - "{{ final_config_lines }}"
+        msg:
+          - "Switch: {{ inventory_hostname }}"
+          - "Interface mode: {{ selected_interface_mode }}"
+          - "Interfaces: {{ interface_list }}"
+          - "Requested VLAN IDs: {{ vlan_list }}"
+          - "VLAN names that will be used: {{ requested_vlan_name_map }}"
+          - "Existing VLAN ID to name map: {{ vlan_id_name_map }}"
+          - "New VLANs to create: {{ missing_vlan_ids if missing_vlan_ids | length > 0 else 'None' }}"
+          - "Config lines:"
+          - "{{ final_config_lines }}"
 
     - name: Apply VLANs to selected ports
       junipernetworks.junos.junos_config:
@@ -190,10 +196,10 @@
 
     - name: Show result
       ansible.builtin.debug:
-          msg:
-            - "Switch: {{ inventory_hostname }}"
-            - "Mode configured: {{ selected_interface_mode }}"
-            - "VLAN IDs requested: {{ vlan_list | join(', ') }}"
-            - "VLAN names used: {{ requested_vlan_name_map }}"
-            - "VLANs created: {{ missing_vlan_ids | join(', ') if missing_vlan_ids | length > 0 else 'None' }}"
-            - "Interfaces updated: {{ interface_list | join(', ') }}"
+        msg:
+          - "Switch: {{ inventory_hostname }}"
+          - "Mode configured: {{ selected_interface_mode }}"
+          - "VLAN IDs requested: {{ vlan_list | join(', ') }}"
+          - "VLAN names used: {{ requested_vlan_name_map }}"
+          - "VLANs created: {{ missing_vlan_ids | join(', ') if missing_vlan_ids | length > 0 else 'None' }}"
+          - "Interfaces updated: {{ interface_list | join(', ') }}"
