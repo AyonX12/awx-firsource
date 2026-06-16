@@ -1,100 +1,119 @@
 ---
-- name: Propagate VLAN to all existing trunk ports on selected Junos switches
-  hosts: junos_switches
+---
+- name: Allow requested VLANs on selected Junos trunk ports
+  hosts: "asw-35th"
   gather_facts: false
 
   vars:
-    vlan_name: "vlan{{ vlan_id }}"
-    vlan_description: "Propagated by Ansible"
+    interface_unit: 0
+    local_backup_path: "/tmp/junos_backups"
+
+    # Variables esperadas desde AWX Survey:
+    # vlans_to_add: "5,126"
+    # interfaces_to_update: "ge-0/0/10,ge-0/0/11"
+    # vlan_name_prefix: "vlan"
+
+    vlan_name_prefix: "vlan"
 
   pre_tasks:
     - name: Validate required variables
       ansible.builtin.assert:
         that:
-          - vlan_id is defined
-          - vlan_id | int >= 1
-          - vlan_id | int <= 4094
-          - vlan_name is defined
+          - vlans_to_add is defined
+          - vlans_to_add | string | length > 0
+          - interfaces_to_update is defined
+          - interfaces_to_update | string | length > 0
         fail_msg: >
-          You must provide vlan_id and vlan_name.
-          Example: -e "vlan_id=126 vlan_name=vlan126"
+          Missing required variables.
+          Example:
+          vlans_to_add="5,126"
+          interfaces_to_update="ge-0/0/10,ge-0/0/11"
+
+    - name: Convert VLAN input string to list
+      ansible.builtin.set_fact:
+        vlan_list: "{{ vlans_to_add.split(',') | map('trim') | list }}"
+
+    - name: Convert interface input string to list
+      ansible.builtin.set_fact:
+        interface_list: "{{ interfaces_to_update.split(',') | map('trim') | list }}"
+
+    - name: Validate VLAN IDs
+      ansible.builtin.assert:
+        that:
+          - item | int >= 1
+          - item | int <= 4094
+        fail_msg: "Invalid VLAN ID: {{ item }}. Valid range is 1-4094."
+      loop: "{{ vlan_list }}"
+
+    - name: Validate interface format
+      ansible.builtin.assert:
+        that:
+          - item is match('^(ge|xe|et|mge)-[0-9]+/[0-9]+/[0-9]+$|^ae[0-9]+$')
+        fail_msg: "Invalid interface format: {{ item }}"
+      loop: "{{ interface_list }}"
 
   tasks:
+    - name: Set backup timestamp
+      ansible.builtin.set_fact:
+        backup_timestamp: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+
+    - name: Create local backup directory inside AWX execution pod
+      ansible.builtin.file:
+        path: "{{ local_backup_path }}/{{ inventory_hostname }}"
+        state: directory
+        mode: "0777"
+      delegate_to: localhost
+      become: false
+
     - name: Backup current Junos configuration
       junipernetworks.junos.junos_config:
         backup: true
+        backup_options:
+          dir_path: "{{ local_backup_path }}/{{ inventory_hostname }}"
+          filename: "{{ inventory_hostname }}_before_vlan_change_{{ backup_timestamp }}.conf"
       register: backup_result
 
-    - name: Ensure VLAN exists on switch
-      junipernetworks.junos.junos_vlans:
-        config:
-          - name: "{{ vlan_name }}"
-            vlan_id: "{{ vlan_id | int }}"
-            description: "{{ vlan_description }}"
-        state: merged
-
-    - name: Get interface configuration in set format
-      junipernetworks.junos.junos_command:
-        commands:
-          - show configuration interfaces
-        display: set
-      register: interfaces_config
-
-    - name: Convert interface config output to text
+    - name: Build VLAN creation lines
       ansible.builtin.set_fact:
-        interfaces_config_text: "{{ interfaces_config.stdout_lines[0] | default([]) | join('\n') }}"
+        vlan_config_lines: "{{ vlan_config_lines | default([]) + [
+          'set vlans ' ~ vlan_name_prefix ~ item ~ ' vlan-id ' ~ item
+        ] }}"
+      loop: "{{ vlan_list }}"
 
-    - name: Detect trunk ports
+    - name: Build trunk interface lines
       ansible.builtin.set_fact:
-        trunk_ports: >-
-          {{
-            interfaces_config_text
-            | regex_findall('set interfaces\\s+(\\S+)\\s+unit\\s+(\\d+)\\s+family\\s+ethernet-switching\\s+(?:interface-mode|port-mode)\\s+trunk')
-            | unique
-            | list
-          }}
+        trunk_mode_lines: "{{ trunk_mode_lines | default([]) + [
+          'set interfaces ' ~ item ~ ' unit ' ~ interface_unit ~ ' family ethernet-switching interface-mode trunk'
+        ] }}"
+      loop: "{{ interface_list }}"
 
-    - name: Detect trunk ports that already allow all VLANs
+    - name: Build VLAN member lines for selected interfaces
       ansible.builtin.set_fact:
-        trunk_ports_with_all_vlans: >-
-          {{
-            interfaces_config_text
-            | regex_findall('set interfaces\\s+(\\S+)\\s+unit\\s+(\\d+)\\s+family\\s+ethernet-switching\\s+vlan\\s+members\\s+all')
-            | unique
-            | list
-          }}
+        vlan_member_lines: "{{ vlan_member_lines | default([]) + [
+          'set interfaces ' ~ item.0 ~ ' unit ' ~ interface_unit ~ ' family ethernet-switching vlan members ' ~ item.1
+        ] }}"
+      loop: "{{ interface_list | product(vlan_list) | list }}"
 
-    - name: Build final trunk port list to update
-      ansible.builtin.set_fact:
-        trunk_ports_to_update: "{{ trunk_ports | difference(trunk_ports_with_all_vlans) }}"
-
-    - name: Show detected trunk ports
+    - name: Show configuration that will be applied
       ansible.builtin.debug:
         msg:
           - "Switch: {{ inventory_hostname }}"
-          - "Detected trunk ports: {{ trunk_ports }}"
-          - "Trunks with vlan members all, skipped: {{ trunk_ports_with_all_vlans }}"
-          - "Trunks to update: {{ trunk_ports_to_update }}"
+          - "Interfaces: {{ interface_list }}"
+          - "VLANs: {{ vlan_list }}"
+          - "Backup: {{ backup_result.backup_path }}"
+          - "Config lines:"
+          - "{{ vlan_config_lines + trunk_mode_lines + vlan_member_lines }}"
 
-    - name: Build configuration lines for trunk ports
-      ansible.builtin.set_fact:
-        trunk_config_lines: "{{ trunk_config_lines | default([]) + [ 'set interfaces ' ~ item.0 ~ ' unit ' ~ item.1 ~ ' family ethernet-switching vlan members ' ~ vlan_name ] }}"
-      loop: "{{ trunk_ports_to_update }}"
-      when: trunk_ports_to_update | length > 0
-
-    - name: Add VLAN to all detected trunk ports
+    - name: Apply VLANs to selected trunk ports
       junipernetworks.junos.junos_config:
-        lines: "{{ trunk_config_lines }}"
-        comment: "Propagated {{ vlan_name }} to trunk ports using Ansible"
-      when:
-        - trunk_ports_to_update | length > 0
-        - trunk_config_lines is defined
+        lines: "{{ vlan_config_lines + trunk_mode_lines + vlan_member_lines }}"
+        comment: "Allowed VLANs {{ vlan_list | join(',') }} on selected trunk ports via AWX"
+      register: config_result
 
-    - name: No trunk ports found or no update needed
+    - name: Show result
       ansible.builtin.debug:
-        msg: "No trunk ports required update on {{ inventory_hostname }}."
-      when: trunk_ports_to_update | length == 0
-
-    - name: Show backup path
-      ansible.builtin.debug:
-        msg: "Backup for {{ inventory_hostname }} saved at {{ backup_result.backup_path | default('N/A') }}"
+        msg:
+          - "Switch: {{ inventory_hostname }}"
+          - "Backup saved at: {{ backup_result.backup_path }}"
+          - "VLANs allowed: {{ vlan_list | join(', ') }}"
+          - "Interfaces updated: {{ interface_list | join(', ') }}"
