@@ -1,566 +1,173 @@
 ---
-- name: Allow requested VLANs on selected Junos ports
+- name: Convert Junos interface to trunk and add requested VLAN
   hosts: all
   gather_facts: false
 
   vars:
     interface_unit: 0
-    vlan_name_prefix: "vlan"
-    interface_mode: "trunk"
-    reset_access_members: true
-    ansible_command_timeout: 120
-    ansible_connect_timeout: 60
+    vlan_name: "vlan{{ vlan_id }}"
+    vlan_description: "Requested by user"
+    replace_allowed_vlans: false
+    enhanced_layer: true
+    native_vlan_id: ""
 
-  pre_tasks:
-    - name: Set safe default variables
-      ansible.builtin.set_fact:
-        effective_interface_unit: "{{ interface_unit | default(0) }}"
-        effective_vlan_name_prefix: "{{ vlan_name_prefix | default('vlan') }}"
-        selected_interface_mode: "{{ interface_mode | default('trunk') | lower | trim }}"
-        effective_reset_access_members: "{{ reset_access_members | default(true) }}"
-
-    - name: Validate required variables
-      ansible.builtin.assert:
-        that:
-          - vlans_to_add is defined
-          - vlans_to_add | string | length > 0
-          - interfaces_to_update is defined
-          - interfaces_to_update | string | length > 0
-        fail_msg: >
-          Missing required variables.
-          Examples:
-          vlans_to_add="126:Collections_Upstart"
-          vlans_to_add="126:Collections_Upstart,130:Guest_WiFi"
-          interfaces_to_update="ge-0/0/10,ge-0/0/11"
-          interface_mode="trunk"
-
-    - name: Validate interface mode
-      ansible.builtin.assert:
-        that:
-          - selected_interface_mode in ['trunk', 'access']
-        fail_msg: "Invalid interface_mode. Valid options are: trunk or access."
-
-    - name: Convert VLAN input string to raw entry list
-      ansible.builtin.set_fact:
-        vlan_raw_entry_list: "{{ vlans_to_add.split(',') | map('trim') | reject('equalto', '') | list }}"
-
-    - name: Validate VLAN input format
-      ansible.builtin.assert:
-        that:
-          - item is match('^[0-9]{1,4}(:[A-Za-z0-9_.-]+)?$')
-        fail_msg: >
-          Invalid VLAN input: {{ item }}.
-          Valid examples:
-          126
-          126:Collections_Upstart
-          VLAN names cannot contain spaces. Use underscores or hyphens.
-      loop: "{{ vlan_raw_entry_list }}"
-
-    - name: Initialize VLAN parsing variables
-      ansible.builtin.set_fact:
-        vlan_list: []
-        requested_vlan_custom_name_map: {}
-
-    - name: Build VLAN ID list from input
-      ansible.builtin.set_fact:
-        vlan_list: "{{ vlan_list + [ item.split(':')[0] | trim ] }}"
-      loop: "{{ vlan_raw_entry_list }}"
-
-    - name: Build requested custom VLAN name map from input
-      ansible.builtin.set_fact:
-        requested_vlan_custom_name_map: >-
-          {{
-            requested_vlan_custom_name_map
-            | combine({
-                (item.split(':')[0] | trim): (item.split(':')[1] | trim)
-              })
-          }}
-      loop: "{{ vlan_raw_entry_list }}"
-      when: "':' in item"
-
-    - name: Validate duplicate VLAN IDs in input
-      ansible.builtin.assert:
-        that:
-          - vlan_list | unique | length == vlan_list | length
-        fail_msg: >
-          Duplicate VLAN IDs were found in vlans_to_add.
-          Current VLAN list: {{ vlan_list }}
-
-    - name: Convert interface input string to list
-      ansible.builtin.set_fact:
-        interface_list: "{{ interfaces_to_update.split(',') | map('trim') | reject('equalto', '') | list }}"
-
-    - name: Validate access mode only has one VLAN
-      ansible.builtin.assert:
-        that:
-          - selected_interface_mode != 'access' or vlan_list | length == 1
-        fail_msg: >
-          Access mode only supports one VLAN.
-          Example:
-          vlans_to_add="126:Collections_Upstart"
-          interface_mode="access"
-
-    - name: Validate VLAN IDs
-      ansible.builtin.assert:
-        that:
-          - item | int >= 1
-          - item | int <= 4094
-        fail_msg: "Invalid VLAN ID: {{ item }}. Valid range is 1-4094."
-      loop: "{{ vlan_list }}"
-
-    - name: Validate interface format
-      ansible.builtin.assert:
-        that:
-          - item is match('^(ge|xe|et|mge)-[0-9]+/[0-9]+/[0-9]+$|^ae[0-9]+$')
-        fail_msg: "Invalid interface format: {{ item }}"
-      loop: "{{ interface_list }}"
-
-  tasks:
-    - name: Initialize configuration variables
-      ansible.builtin.set_fact:
-        vlan_id_name_map: {}
-        vlan_name_id_map: {}
-        requested_vlan_name_map: {}
-        missing_vlan_ids: []
-        vlan_name_conflict_map: {}
-        vlan_config_lines: []
-        access_cleanup_lines: []
-        interface_mode_lines: []
-        vlan_member_lines: []
-        final_config_lines: []
-
-    - name: Gather existing VLANs from Junos
-      junipernetworks.junos.junos_vlans:
-        state: gathered
-      register: gathered_vlans_result
-
-    - name: Build VLAN ID to name map from gathered VLANs
-      ansible.builtin.set_fact:
-        vlan_id_name_map: "{{ vlan_id_name_map | combine({ (item.vlan_id | string): item.name }) }}"
-        vlan_name_id_map: "{{ vlan_name_id_map | combine({ item.name: (item.vlan_id | string) }) }}"
-      loop: "{{ gathered_vlans_result.gathered | default([]) }}"
-      when:
-        - item.vlan_id is defined
-        - item.name is defined
-
-    - name: Stop if VLAN detection failed
-      ansible.builtin.assert:
-        that:
-          - vlan_id_name_map | length > 0
-        fail_msg: >
-          VLAN detection failed on {{ inventory_hostname }}.
-          The playbook will not continue because it could create a duplicate VLAN ID.
-          Review the output of junos_vlans gathered before applying changes.
-
-    - name: Detect missing VLAN IDs
-      ansible.builtin.set_fact:
-        missing_vlan_ids: "{{ vlan_list | difference(vlan_id_name_map.keys() | list) }}"
-
-    - name: Build requested VLAN name map
-      ansible.builtin.set_fact:
-        requested_vlan_name_map: >-
-          {{
-            requested_vlan_name_map
-            | combine({
-                item: vlan_id_name_map[item]
-                      | default(
-                          requested_vlan_custom_name_map[item]
-                          | default(effective_vlan_name_prefix ~ item)
-                        )
-              })
-          }}
-      loop: "{{ vlan_list }}"
-
-    - name: Detect requested VLAN name conflicts for new VLANs
-      ansible.builtin.set_fact:
-        vlan_name_conflict_map: >-
-          {{
-            vlan_name_conflict_map
-            | combine({
-                item: {
-                  'requested_name': requested_vlan_name_map[item],
-                  'existing_vlan_id_with_same_name': vlan_name_id_map[requested_vlan_name_map[item]]
-                }
-              })
-          }}
-      loop: "{{ missing_vlan_ids }}"
-      when:
-        - requested_vlan_name_map[item] in (vlan_name_id_map.keys() | list)
-
-    - name: Stop if requested VLAN name already exists with another VLAN ID
-      ansible.builtin.assert:
-        that:
-          - vlan_name_conflict_map | length == 0
-        fail_msg: >
-          VLAN name conflict detected on {{ inventory_hostname }}.
-          One or more new VLAN names already exist with another VLAN ID.
-          Conflict details: {{ vlan_name_conflict_map }}
-
-    - name: Show VLAN validation result
-      ansible.builtin.debug:
-        msg:
-          - "Switch: {{ inventory_hostname }}"
-          - "Requested VLAN input: {{ vlan_raw_entry_list }}"
-          - "Requested VLAN IDs: {{ vlan_list | join(', ') }}"
-          - "Requested custom VLAN names: {{ requested_vlan_custom_name_map }}"
-          - "Detected existing VLAN ID to name map: {{ vlan_id_name_map }}"
-          - "VLAN names that will be used: {{ requested_vlan_name_map }}"
-          - "Missing VLANs that will be created: {{ missing_vlan_ids | join(', ') if missing_vlan_ids | length > 0 else 'None' }}"
-
-    - name: Build VLAN creation lines only for missing VLANs
-      ansible.builtin.set_fact:
-        vlan_config_lines: "{{ vlan_config_lines + [
-          'set vlans ' ~ requested_vlan_name_map[item] ~ ' vlan-id ' ~ item
-        ] }}"
-      loop: "{{ missing_vlan_ids }}"
-      when:
-        - missing_vlan_ids | length > 0
-
-    - name: Build interface mode lines
-      ansible.builtin.set_fact:
-        interface_mode_lines: "{{ interface_mode_lines + [
-          'set interfaces ' ~ item ~ ' unit ' ~ effective_interface_unit ~ ' family ethernet-switching interface-mode ' ~ selected_interface_mode
-        ] }}"
-      loop: "{{ interface_list }}"
-
-    - name: Build access cleanup lines
-      ansible.builtin.set_fact:
-        access_cleanup_lines: "{{ access_cleanup_lines + [
-          'delete interfaces ' ~ item ~ ' unit ' ~ effective_interface_unit ~ ' family ethernet-switching vlan members',
-          'delete interfaces ' ~ item ~ ' unit ' ~ effective_interface_unit ~ ' family ethernet-switching native-vlan-id'
-        ] }}"
-      loop: "{{ interface_list }}"
-      when:
-        - selected_interface_mode == 'access'
-        - effective_reset_access_members | bool
-
-    - name: Build VLAN member lines for selected interfaces
-      ansible.builtin.set_fact:
-        vlan_member_lines: "{{ vlan_member_lines + [
-          'set interfaces ' ~ item.0 ~ ' unit ' ~ effective_interface_unit ~ ' family ethernet-switching vlan members ' ~ requested_vlan_name_map[item.1]
-        ] }}"
-      loop: "{{ interface_list | product(vlan_list) | list }}"
-
-    - name: Build final configuration lines
-      ansible.builtin.set_fact:
-        final_config_lines: >-
-          {{
-            vlan_config_lines
-            + access_cleanup_lines
-            + interface_mode_lines
-            + vlan_member_lines
-          }}
-
-    - name: Show configuration that will be applied
-      ansible.builtin.debug:
-        msg:
-          - "Switch: {{ inventory_hostname }}"
-          - "Interface mode: {{ selected_interface_mode }}"
-          - "Interfaces: {{ interface_list }}"
-          - "Requested VLAN IDs: {{ vlan_list }}"
-          - "VLAN names that will be used: {{ requested_vlan_name_map }}"
-          - "Existing VLAN ID to name map: {{ vlan_id_name_map }}"
-          - "New VLANs to create: {{ missing_vlan_ids if missing_vlan_ids | length > 0 else 'None' }}"
-          - "Config lines:"
-          - "{{ final_config_lines }}"
-
-    - name: Safety check to avoid duplicate VLAN creation
-      ansible.builtin.assert:
-        that:
-          - vlan_list | difference((vlan_id_name_map.keys() | list) + missing_vlan_ids) | length == 0
-          - vlan_name_conflict_map | length == 0
-        fail_msg: >
-          Safety validation failed on {{ inventory_hostname }}.
-          The playbook detected a possible VLAN validation issue before commit.
-
-    - name: Apply VLANs to selected ports
-      junipernetworks.junos.junos_config:
-        lines: "{{ final_config_lines }}"
-        comment: >-
-          Configured VLAN IDs {{ vlan_list | join(',') }} on {{ selected_interface_mode }} ports via AWX.
-          Created VLANs: {{ missing_vlan_ids | join(',') if missing_vlan_ids | length > 0 else 'none' }}.
-      register: config_result
-
-    - name: Show result
-      ansible.builtin.debug:
-        msg:
-          - "Switch: {{ inventory_hostname }}"
-          - "Mode configured: {{ selected_interface_mode }}"
-          - "VLAN IDs requested: {{ vlan_list | join(', ') }}"
-          - "VLAN names used: {{ requested_vlan_name_map }}"
-          - "VLANs created: {{ missing_vlan_ids | join(', ') if missing_vlan_ids | length > 0 else 'None' }}"
-          - "Interfaces updated: {{ interface_list | join(', ') }}"
-  hosts: all
-  gather_facts: false
   pre_tasks:
     - name: Validate required variables
       ansible.builtin.assert:
         that:
-          - vlans_to_add is defined
-          - vlans_to_add | string | length > 0
-          - interfaces_to_update is defined
-          - interfaces_to_update | string | length > 0
+          - interface_name is defined
+          - vlan_id is defined
+          - vlan_id | int >= 1
+          - vlan_id | int <= 4094
+          - interface_name is match('^(ge|xe|et|mge)-[0-9]+/[0-9]+/[0-9]+$|^ae[0-9]+$')
         fail_msg: >
-          Missing required variables.
-          Examples:
-          vlans_to_add="126:Collections_Upstart"
-          vlans_to_add="126:Collections_Upstart,130:Guest_WiFi"
-          interfaces_to_update="ge-0/0/10,ge-0/0/11"
-          interface_mode="trunk"
-
-    - name: Normalize interface mode
-      ansible.builtin.set_fact:
-        selected_interface_mode: "{{ interface_mode | default('trunk') | lower | trim }}"
-
-    - name: Validate interface mode
-      ansible.builtin.assert:
-        that:
-          - selected_interface_mode in ['trunk', 'access']
-        fail_msg: "Invalid interface_mode. Valid options are: trunk or access."
-
-    - name: Convert VLAN input string to raw entry list
-      ansible.builtin.set_fact:
-        vlan_raw_entry_list: "{{ vlans_to_add.split(',') | map('trim') | reject('equalto', '') | list }}"
-
-    - name: Validate VLAN input format
-      ansible.builtin.assert:
-        that:
-          - item is match('^[0-9]{1,4}(:[A-Za-z0-9_.-]+)?$')
-        fail_msg: >
-          Invalid VLAN input: {{ item }}.
-          Valid examples:
-          126
-          126:Collections_Upstart
-          VLAN names cannot contain spaces. Use underscores or hyphens.
-      loop: "{{ vlan_raw_entry_list }}"
-
-    - name: Initialize VLAN parsing variables
-      ansible.builtin.set_fact:
-        vlan_list: []
-        requested_vlan_custom_name_map: {}
-
-    - name: Build VLAN ID list from input
-      ansible.builtin.set_fact:
-        vlan_list: "{{ vlan_list + [ item.split(':')[0] | trim ] }}"
-      loop: "{{ vlan_raw_entry_list }}"
-
-    - name: Build requested custom VLAN name map from input
-      ansible.builtin.set_fact:
-        requested_vlan_custom_name_map: >-
-          {{
-            requested_vlan_custom_name_map
-            | combine({
-                (item.split(':')[0] | trim): (item.split(':')[1] | trim)
-              })
-          }}
-      loop: "{{ vlan_raw_entry_list }}"
-      when: "':' in item"
-
-    - name: Validate duplicate VLAN IDs in input
-      ansible.builtin.assert:
-        that:
-          - vlan_list | unique | length == vlan_list | length
-        fail_msg: >
-          Duplicate VLAN IDs were found in vlans_to_add.
-          Current VLAN list: {{ vlan_list }}
-
-    - name: Convert interface input string to list
-      ansible.builtin.set_fact:
-        interface_list: "{{ interfaces_to_update.split(',') | map('trim') | reject('equalto', '') | list }}"
-
-    - name: Validate access mode only has one VLAN
-      ansible.builtin.assert:
-        that:
-          - selected_interface_mode != 'access' or vlan_list | length == 1
-        fail_msg: >
-          Access mode only supports one VLAN.
-          Example:
-          vlans_to_add="126:Collections_Upstart"
-          interface_mode="access"
-
-    - name: Validate VLAN IDs
-      ansible.builtin.assert:
-        that:
-          - item | int >= 1
-          - item | int <= 4094
-        fail_msg: "Invalid VLAN ID: {{ item }}. Valid range is 1-4094."
-      loop: "{{ vlan_list }}"
-
-    - name: Validate interface format
-      ansible.builtin.assert:
-        that:
-          - item is match('^(ge|xe|et|mge)-[0-9]+/[0-9]+/[0-9]+$|^ae[0-9]+$')
-        fail_msg: "Invalid interface format: {{ item }}"
-      loop: "{{ interface_list }}"
+          Missing or invalid input. Required example:
+          interface_name=ge-0/0/10 vlan_id=126 vlan_name=vlan126
 
   tasks:
-    - name: Initialize configuration variables
+    - name: Set backup timestamp
       ansible.builtin.set_fact:
-        vlan_id_name_map: {}
-        vlan_name_id_map: {}
-        requested_vlan_name_map: {}
-        missing_vlan_ids: []
-        vlan_name_conflict_map: {}
-        vlan_config_lines: []
-        access_cleanup_lines: []
-        interface_mode_lines: []
-        vlan_member_lines: []
-        final_config_lines: []
+          backup_timestamp: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
 
-    - name: Gather existing VLANs from Junos
-      junipernetworks.junos.junos_vlans:
-        state: gathered
-      register: gathered_vlans_result
+    - name: Create local backup directory inside AWX execution pod
+      ansible.builtin.file:
+          path: "/tmp/junos_backups/{{ inventory_hostname }}"
+          state: directory
+          mode: "0777"
+      delegate_to: localhost
+      become: false
 
-    - name: Build VLAN ID to name map from gathered VLANs
-      ansible.builtin.set_fact:
-        vlan_id_name_map: "{{ vlan_id_name_map | combine({ (item.vlan_id | string): item.name }) }}"
-        vlan_name_id_map: "{{ vlan_name_id_map | combine({ item.name: (item.vlan_id | string) }) }}"
-      loop: "{{ gathered_vlans_result.gathered | default([]) }}"
-      when:
-        - item.vlan_id is defined
-        - item.name is defined
-
-    - name: Stop if VLAN detection failed
-      ansible.builtin.assert:
-        that:
-          - vlan_id_name_map | length > 0
-        fail_msg: >
-          VLAN detection failed on {{ inventory_hostname }}.
-          The playbook will not continue because it could create a duplicate VLAN ID.
-          Review the output of junos_vlans gathered before applying changes.
-
-    - name: Detect missing VLAN IDs
-      ansible.builtin.set_fact:
-        missing_vlan_ids: "{{ vlan_list | difference(vlan_id_name_map.keys() | list) }}"
-
-    - name: Build requested VLAN name map
-      ansible.builtin.set_fact:
-        requested_vlan_name_map: >-
-          {{
-            requested_vlan_name_map
-            | combine({
-                item: vlan_id_name_map[item] | default(requested_vlan_custom_name_map[item] | default(vlan_name_prefix ~ item))
-              })
-          }}
-      loop: "{{ vlan_list }}"
-
-    - name: Detect requested VLAN name conflicts for new VLANs
-      ansible.builtin.set_fact:
-        vlan_name_conflict_map: >-
-          {{
-            vlan_name_conflict_map
-            | combine({
-                item: {
-                  'requested_name': requested_vlan_name_map[item],
-                  'existing_vlan_id_with_same_name': vlan_name_id_map[requested_vlan_name_map[item]]
-                }
-              })
-          }}
-      loop: "{{ missing_vlan_ids }}"
-      when:
-        - requested_vlan_name_map[item] in (vlan_name_id_map.keys() | list)
-
-    - name: Stop if requested VLAN name already exists with another VLAN ID
-      ansible.builtin.assert:
-        that:
-          - vlan_name_conflict_map | length == 0
-        fail_msg: >
-          VLAN name conflict detected on {{ inventory_hostname }}.
-          One or more new VLAN names already exist with another VLAN ID.
-          Conflict details: {{ vlan_name_conflict_map }}
-
-    - name: Show VLAN validation result
-      ansible.builtin.debug:
-        msg:
-          - "Switch: {{ inventory_hostname }}"
-          - "Requested VLAN input: {{ vlan_raw_entry_list }}"
-          - "Requested VLAN IDs: {{ vlan_list | join(', ') }}"
-          - "Requested custom VLAN names: {{ requested_vlan_custom_name_map }}"
-          - "Detected existing VLAN ID to name map: {{ vlan_id_name_map }}"
-          - "VLAN names that will be used: {{ requested_vlan_name_map }}"
-          - "Missing VLANs that will be created: {{ missing_vlan_ids | join(', ') if missing_vlan_ids | length > 0 else 'None' }}"
-
-    - name: Build VLAN creation lines only for missing VLANs
-      ansible.builtin.set_fact:
-        vlan_config_lines: "{{ vlan_config_lines + [
-          'set vlans ' ~ requested_vlan_name_map[item] ~ ' vlan-id ' ~ item
-        ] }}"
-      loop: "{{ missing_vlan_ids }}"
-      when:
-        - missing_vlan_ids | length > 0
-
-    - name: Build interface mode lines
-      ansible.builtin.set_fact:
-        interface_mode_lines: "{{ interface_mode_lines + [
-          'set interfaces ' ~ item ~ ' unit ' ~ interface_unit ~ ' family ethernet-switching interface-mode ' ~ selected_interface_mode
-        ] }}"
-      loop: "{{ interface_list }}"
-
-    - name: Build access cleanup lines
-      ansible.builtin.set_fact:
-        access_cleanup_lines: "{{ access_cleanup_lines + [
-          'delete interfaces ' ~ item ~ ' unit ' ~ interface_unit ~ ' family ethernet-switching vlan members',
-          'delete interfaces ' ~ item ~ ' unit ' ~ interface_unit ~ ' family ethernet-switching native-vlan-id'
-        ] }}"
-      loop: "{{ interface_list }}"
-      when:
-        - selected_interface_mode == 'access'
-        - reset_access_members | default(true) | bool
-
-    - name: Build VLAN member lines for selected interfaces
-      ansible.builtin.set_fact:
-        vlan_member_lines: "{{ vlan_member_lines + [
-          'set interfaces ' ~ item.0 ~ ' unit ' ~ interface_unit ~ ' family ethernet-switching vlan members ' ~ requested_vlan_name_map[item.1]
-        ] }}"
-      loop: "{{ interface_list | product(vlan_list) | list }}"
-
-    - name: Build final configuration lines
-      ansible.builtin.set_fact:
-        final_config_lines: >-
-          {{
-            vlan_config_lines
-            + access_cleanup_lines
-            + interface_mode_lines
-            + vlan_member_lines
-          }}
-
-    - name: Show configuration that will be applied
-      ansible.builtin.debug:
-        msg:
-          - "Switch: {{ inventory_hostname }}"
-          - "Interface mode: {{ selected_interface_mode }}"
-          - "Interfaces: {{ interface_list }}"
-          - "Requested VLAN IDs: {{ vlan_list }}"
-          - "VLAN names that will be used: {{ requested_vlan_name_map }}"
-          - "Existing VLAN ID to name map: {{ vlan_id_name_map }}"
-          - "New VLANs to create: {{ missing_vlan_ids if missing_vlan_ids | length > 0 else 'None' }}"
-          - "Config lines:"
-          - "{{ final_config_lines }}"
-
-    - name: Safety check to avoid duplicate VLAN creation
-      ansible.builtin.assert:
-        that:
-          - vlan_list | difference((vlan_id_name_map.keys() | list) + missing_vlan_ids) | length == 0
-          - vlan_name_conflict_map | length == 0
-        fail_msg: >
-          Safety validation failed on {{ inventory_hostname }}.
-          The playbook detected a possible VLAN validation issue before commit.
-
-    - name: Apply VLANs to selected ports
+    - name: Backup current Junos configuration locally inside AWX execution pod
       junipernetworks.junos.junos_config:
-        lines: "{{ final_config_lines }}"
-        comment: >-
-          Configured VLAN IDs {{ vlan_list | join(',') }} on {{ selected_interface_mode }} ports via AWX.
-          Created VLANs: {{ missing_vlan_ids | join(',') if missing_vlan_ids | length > 0 else 'none' }}.
-      register: config_result
+          backup: true
+          backup_options:
+            dir_path: "/tmp/junos_backups/{{ inventory_hostname }}"
+            filename: "{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf"
+      register: backup_result
+
+    - name: Show local backup path
+      ansible.builtin.debug:
+          msg: "Local backup created at: {{ backup_result.backup_path }}"
+
+    - name: Test curl exists in AWX execution environment
+      ansible.builtin.command: curl --version
+      delegate_to: localhost
+      become: false
+      register: curl_check
+      changed_when: false
+
+    
+    - name: Upload Junos backup to TFTP server
+      ansible.builtin.command: >
+        tftp {{ ftp_host }} -m binary -c put
+        {{ backup_result.backup_path }}
+        juniper/{{ inventory_hostname }}/{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf
+      delegate_to: localhost
+      become: false
+
+
+  
+
+    - name: Confirm FTP upload
+      ansible.builtin.debug:
+          msg:
+            - "Backup uploaded to FTP:"
+            - "tftp://{{ ftp_host }}/juniper/{{ inventory_hostname }}/{{ inventory_hostname }}_before_vlan_{{ vlan_id }}_{{ backup_timestamp }}.conf"
+            
+      delegate_to: localhost
+      become: false
+
+
+    - name: Ensure requested VLAN exists
+      junipernetworks.junos.junos_vlans:
+        config:
+          - name: "{{ vlan_name }}"
+            vlan_id: "{{ vlan_id | int }}"
+            description: "{{ vlan_description }}"
+        state: merged
+
+    - name: Gather current L2 interface configuration
+      junipernetworks.junos.junos_l2_interfaces:
+        state: gathered
+      register: l2_info
+
+    - name: Get current config for requested interface
+      ansible.builtin.set_fact:
+        current_l2: >-
+          {{
+            (
+              l2_info.gathered
+              | default([])
+              | selectattr('name', 'equalto', interface_name)
+              | list
+              | first
+            )
+            | default({})
+          }}
+
+    - name: Build allowed VLAN list
+      ansible.builtin.set_fact:
+        desired_allowed_vlans: >-
+          {{
+            (
+              [vlan_name]
+              if replace_allowed_vlans | bool
+              else (
+                current_l2.get('trunk', {}).get('allowed_vlans', [])
+                + [vlan_name]
+              )
+            )
+            | unique
+            | list
+          }}
+
+    - name: Build base trunk interface config
+      ansible.builtin.set_fact:
+        desired_l2_interface:
+          name: "{{ interface_name }}"
+          unit: "{{ interface_unit | int }}"
+          enhanced_layer: "{{ enhanced_layer | bool }}"
+          trunk:
+            allowed_vlans: "{{ desired_allowed_vlans }}"
+
+    - name: Preserve or set native VLAN when applicable
+      ansible.builtin.set_fact:
+        desired_native_vlan: >-
+          {{
+            native_vlan_id
+            if native_vlan_id | string | length > 0
+            else current_l2.get('trunk', {}).get('native_vlan', '')
+          }}
+
+    - name: Add native VLAN to desired config
+      ansible.builtin.set_fact:
+        desired_l2_interface: >-
+          {{
+            desired_l2_interface
+            | combine(
+                {
+                  'trunk': {
+                    'native_vlan': desired_native_vlan | string
+                  }
+                },
+                recursive=True
+              )
+          }}
+      when: desired_native_vlan | string | length > 0
+
+    - name: Convert interface to trunk and apply allowed VLANs
+      junipernetworks.junos.junos_l2_interfaces:
+        config:
+          - "{{ desired_l2_interface }}"
+        state: replaced
+      register: trunk_result
 
     - name: Show result
       ansible.builtin.debug:
         msg:
+          - "Backup saved at: {{ backup_result.backup_path | default('N/A') }}"
           - "Switch: {{ inventory_hostname }}"
-          - "Mode configured: {{ selected_interface_mode }}"
-          - "VLAN IDs requested: {{ vlan_list | join(', ') }}"
-          - "VLAN names used: {{ requested_vlan_name_map }}"
-          - "VLANs created: {{ missing_vlan_ids | join(', ') if missing_vlan_ids | length > 0 else 'None' }}"
-          - "Interfaces updated: {{ interface_list | join(', ') }}"
+          - "Interface: {{ interface_name }}"
+          - "Mode: trunk"
+          - "Allowed VLANs: {{ desired_allowed_vlans | join(', ') }}"
+          - "Native VLAN: {{ desired_native_vlan if desired_native_vlan | string | length > 0 else 'not configured' }}"
