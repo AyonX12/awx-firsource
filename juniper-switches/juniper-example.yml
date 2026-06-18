@@ -1,7 +1,7 @@
 ---
 
 - name: Consultar información en un switch Juniper
-  hosts: all
+  hosts: "{{ target_hosts | default('all') }}"
   gather_facts: no
   connection: ansible.netcommon.netconf
   collections:
