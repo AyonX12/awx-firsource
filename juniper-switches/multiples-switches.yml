@@ -2,15 +2,6 @@
 - name: Allow requested VLANs on selected Junos ports
   hosts: all
   gather_facts: false
-
-  vars:
-    interface_unit: 0
-    vlan_name_prefix: "vlan"
-    interface_mode: "trunk"
-    reset_access_members: true
-    ansible_command_timeout: 120
-    ansible_connect_timeout: 60
-
   pre_tasks:
     - name: Validate required variables
       ansible.builtin.assert:
@@ -21,8 +12,9 @@
           - interfaces_to_update | string | length > 0
         fail_msg: >
           Missing required variables.
-          Example:
-          vlans_to_add="5,126"
+          Examples:
+          vlans_to_add="126:Collections_Upstart"
+          vlans_to_add="126:Collections_Upstart,130:Guest_WiFi"
           interfaces_to_update="ge-0/0/10,ge-0/0/11"
           interface_mode="trunk"
 
@@ -36,9 +28,51 @@
           - selected_interface_mode in ['trunk', 'access']
         fail_msg: "Invalid interface_mode. Valid options are: trunk or access."
 
-    - name: Convert VLAN input string to list
+    - name: Convert VLAN input string to raw entry list
       ansible.builtin.set_fact:
-        vlan_list: "{{ vlans_to_add.split(',') | map('trim') | reject('equalto', '') | list }}"
+        vlan_raw_entry_list: "{{ vlans_to_add.split(',') | map('trim') | reject('equalto', '') | list }}"
+
+    - name: Validate VLAN input format
+      ansible.builtin.assert:
+        that:
+          - item is match('^[0-9]{1,4}(:[A-Za-z0-9_.-]+)?$')
+        fail_msg: >
+          Invalid VLAN input: {{ item }}.
+          Valid examples:
+          126
+          126:Collections_Upstart
+          VLAN names cannot contain spaces. Use underscores or hyphens.
+      loop: "{{ vlan_raw_entry_list }}"
+
+    - name: Initialize VLAN parsing variables
+      ansible.builtin.set_fact:
+        vlan_list: []
+        requested_vlan_custom_name_map: {}
+
+    - name: Build VLAN ID list from input
+      ansible.builtin.set_fact:
+        vlan_list: "{{ vlan_list + [ item.split(':')[0] | trim ] }}"
+      loop: "{{ vlan_raw_entry_list }}"
+
+    - name: Build requested custom VLAN name map from input
+      ansible.builtin.set_fact:
+        requested_vlan_custom_name_map: >-
+          {{
+            requested_vlan_custom_name_map
+            | combine({
+                (item.split(':')[0] | trim): (item.split(':')[1] | trim)
+              })
+          }}
+      loop: "{{ vlan_raw_entry_list }}"
+      when: "':' in item"
+
+    - name: Validate duplicate VLAN IDs in input
+      ansible.builtin.assert:
+        that:
+          - vlan_list | unique | length == vlan_list | length
+        fail_msg: >
+          Duplicate VLAN IDs were found in vlans_to_add.
+          Current VLAN list: {{ vlan_list }}
 
     - name: Convert interface input string to list
       ansible.builtin.set_fact:
@@ -51,7 +85,7 @@
         fail_msg: >
           Access mode only supports one VLAN.
           Example:
-          vlans_to_add="5"
+          vlans_to_add="126:Collections_Upstart"
           interface_mode="access"
 
     - name: Validate VLAN IDs
@@ -73,8 +107,10 @@
     - name: Initialize configuration variables
       ansible.builtin.set_fact:
         vlan_id_name_map: {}
+        vlan_name_id_map: {}
         requested_vlan_name_map: {}
         missing_vlan_ids: []
+        vlan_name_conflict_map: {}
         vlan_config_lines: []
         access_cleanup_lines: []
         interface_mode_lines: []
@@ -89,6 +125,7 @@
     - name: Build VLAN ID to name map from gathered VLANs
       ansible.builtin.set_fact:
         vlan_id_name_map: "{{ vlan_id_name_map | combine({ (item.vlan_id | string): item.name }) }}"
+        vlan_name_id_map: "{{ vlan_name_id_map | combine({ item.name: (item.vlan_id | string) }) }}"
       loop: "{{ gathered_vlans_result.gathered | default([]) }}"
       when:
         - item.vlan_id is defined
@@ -113,16 +150,43 @@
           {{
             requested_vlan_name_map
             | combine({
-                item: vlan_id_name_map[item] | default(vlan_name_prefix ~ item)
+                item: vlan_id_name_map[item] | default(requested_vlan_custom_name_map[item] | default(vlan_name_prefix ~ item))
               })
           }}
       loop: "{{ vlan_list }}"
+
+    - name: Detect requested VLAN name conflicts for new VLANs
+      ansible.builtin.set_fact:
+        vlan_name_conflict_map: >-
+          {{
+            vlan_name_conflict_map
+            | combine({
+                item: {
+                  'requested_name': requested_vlan_name_map[item],
+                  'existing_vlan_id_with_same_name': vlan_name_id_map[requested_vlan_name_map[item]]
+                }
+              })
+          }}
+      loop: "{{ missing_vlan_ids }}"
+      when:
+        - requested_vlan_name_map[item] in (vlan_name_id_map.keys() | list)
+
+    - name: Stop if requested VLAN name already exists with another VLAN ID
+      ansible.builtin.assert:
+        that:
+          - vlan_name_conflict_map | length == 0
+        fail_msg: >
+          VLAN name conflict detected on {{ inventory_hostname }}.
+          One or more new VLAN names already exist with another VLAN ID.
+          Conflict details: {{ vlan_name_conflict_map }}
 
     - name: Show VLAN validation result
       ansible.builtin.debug:
         msg:
           - "Switch: {{ inventory_hostname }}"
+          - "Requested VLAN input: {{ vlan_raw_entry_list }}"
           - "Requested VLAN IDs: {{ vlan_list | join(', ') }}"
+          - "Requested custom VLAN names: {{ requested_vlan_custom_name_map }}"
           - "Detected existing VLAN ID to name map: {{ vlan_id_name_map }}"
           - "VLAN names that will be used: {{ requested_vlan_name_map }}"
           - "Missing VLANs that will be created: {{ missing_vlan_ids | join(', ') if missing_vlan_ids | length > 0 else 'None' }}"
@@ -187,8 +251,8 @@
     - name: Safety check to avoid duplicate VLAN creation
       ansible.builtin.assert:
         that:
-          - "'Duplicate vlan-id' not in (final_config_lines | join(' '))"
           - vlan_list | difference((vlan_id_name_map.keys() | list) + missing_vlan_ids) | length == 0
+          - vlan_name_conflict_map | length == 0
         fail_msg: >
           Safety validation failed on {{ inventory_hostname }}.
           The playbook detected a possible VLAN validation issue before commit.
