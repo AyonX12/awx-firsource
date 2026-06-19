@@ -9,7 +9,6 @@
       ansible.builtin.set_fact:
         effective_interface_unit: "{{ interface_unit | default(0) }}"
         effective_delete_vlan_from_switch: "{{ delete_vlan_from_switch | default(true) }}"
-        effective_upload_backup_tftp: "{{ upload_backup_tftp | default(true) }}"
         effective_vlans_to_remove: "{{ vlans_to_remove if vlans_to_remove is defined else (vlan_id | string if vlan_id is defined else '') }}"
 
     - name: Validate required variables
