@@ -1,0 +1,253 @@
+---
+- name: Remove requested VLANs from Junos trunks and switch
+  hosts: "{{ target_hosts | default('all') }}"
+  gather_facts: false
+
+  vars:
+    interface_unit: 0
+    delete_vlan_from_switch: true
+    upload_backup_tftp: true
+
+  pre_tasks:
+    - name: Set safe default variables
+      ansible.builtin.set_fact:
+        effective_interface_unit: "{{ interface_unit | default(0) }}"
+        effective_delete_vlan_from_switch: "{{ delete_vlan_from_switch | default(true) }}"
+        effective_upload_backup_tftp: "{{ upload_backup_tftp | default(true) }}"
+        effective_vlans_to_remove: "{{ vlans_to_remove if vlans_to_remove is defined else (vlan_id | string if vlan_id is defined else '') }}"
+
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - effective_vlans_to_remove | string | length > 0
+          - not effective_upload_backup_tftp | bool or ftp_host is defined
+          - not effective_upload_backup_tftp | bool or ftp_host | string | length > 0
+        fail_msg: >
+          Missing required variables.
+          Required example:
+          target_hosts="asw18"
+          vlans_to_remove="126,130"
+          interfaces_to_update="all"
+          ftp_host="10.58.121.13"
+
+    - name: Convert VLAN input string to list
+      ansible.builtin.set_fact:
+        remove_vlan_id_list: "{{ effective_vlans_to_remove.split(',') | map('trim') | reject('equalto', '') | list }}"
+
+    - name: Validate VLAN IDs
+      ansible.builtin.assert:
+        that:
+          - item | int >= 1
+          - item | int <= 4094
+        fail_msg: "Invalid VLAN ID: {{ item }}. Valid range is 1-4094."
+      loop: "{{ remove_vlan_id_list }}"
+
+    - name: Validate duplicate VLAN IDs in input
+      ansible.builtin.assert:
+        that:
+          - remove_vlan_id_list | unique | length == remove_vlan_id_list | length
+        fail_msg: >
+          Duplicate VLAN IDs were found in vlans_to_remove.
+          Current VLAN list: {{ remove_vlan_id_list }}
+
+    - name: Define interface scope
+      ansible.builtin.set_fact:
+        interface_scope_all: "{{ interfaces_to_update is not defined or interfaces_to_update | string | trim | lower in ['', 'all'] }}"
+
+    - name: Convert interface input string to list
+      ansible.builtin.set_fact:
+        interface_list: "{{ interfaces_to_update.split(',') | map('trim') | reject('equalto', '') | list }}"
+      when: not interface_scope_all | bool
+
+    - name: Initialize empty interface list when scope is all
+      ansible.builtin.set_fact:
+        interface_list: []
+      when: interface_scope_all | bool
+
+    - name: Validate interface format
+      ansible.builtin.assert:
+        that:
+          - item is match('^(ge|xe|et|mge)-[0-9]+/[0-9]+/[0-9]+$|^ae[0-9]+$')
+        fail_msg: "Invalid interface format: {{ item }}"
+      loop: "{{ interface_list }}"
+      when: not interface_scope_all | bool
+
+  tasks:
+    - name: Set backup timestamp
+      ansible.builtin.set_fact:
+        backup_timestamp: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+
+    - name: Create local backup directory inside AWX execution pod
+      ansible.builtin.file:
+        path: "/tmp/junos_backups/{{ inventory_hostname }}"
+        state: directory
+        mode: "0777"
+      delegate_to: localhost
+      become: false
+
+    - name: Backup current Junos configuration locally inside AWX execution pod
+      junipernetworks.junos.junos_config:
+        backup: true
+        backup_options:
+          dir_path: "/tmp/junos_backups/{{ inventory_hostname }}"
+          filename: "{{ inventory_hostname }}_before_remove_vlan_{{ remove_vlan_id_list | join('_') }}_{{ backup_timestamp }}.conf"
+      register: backup_result
+
+    - name: Show local backup path
+      ansible.builtin.debug:
+        msg: "Local backup created at: {{ backup_result.backup_path }}"
+
+    - name: Initialize configuration variables
+      ansible.builtin.set_fact:
+        vlan_id_name_map: {}
+        requested_existing_vlan_name_map: {}
+        requested_missing_vlan_ids: []
+        vlan_member_tokens: []
+        trunk_member_delete_lines: []
+        native_vlan_delete_lines: []
+        vlan_delete_lines: []
+        final_config_lines: []
+
+    - name: Gather existing VLANs from Junos
+      junipernetworks.junos.junos_vlans:
+        state: gathered
+      register: gathered_vlans_result
+
+    - name: Build VLAN ID to name map from gathered VLANs
+      ansible.builtin.set_fact:
+        vlan_id_name_map: "{{ vlan_id_name_map | combine({ (item.vlan_id | string): item.name }) }}"
+      loop: "{{ gathered_vlans_result.gathered | default([]) }}"
+      when:
+        - item.vlan_id is defined
+        - item.name is defined
+
+    - name: Stop if VLAN detection failed
+      ansible.builtin.assert:
+        that:
+          - vlan_id_name_map | length > 0
+        fail_msg: >
+          VLAN detection failed on {{ inventory_hostname }}.
+          The playbook will not continue because it cannot safely know which VLAN names to remove.
+
+    - name: Build requested existing VLAN name map
+      ansible.builtin.set_fact:
+        requested_existing_vlan_name_map: "{{ requested_existing_vlan_name_map | combine({ item: vlan_id_name_map[item] }) }}"
+      loop: "{{ remove_vlan_id_list }}"
+      when: item in (vlan_id_name_map.keys() | list)
+
+    - name: Detect VLAN IDs that do not exist on the switch
+      ansible.builtin.set_fact:
+        requested_missing_vlan_ids: "{{ remove_vlan_id_list | difference(vlan_id_name_map.keys() | list) }}"
+
+    - name: Stop if none of the requested VLANs exist
+      ansible.builtin.assert:
+        that:
+          - requested_existing_vlan_name_map | length > 0
+        fail_msg: >
+          None of the requested VLAN IDs exist on {{ inventory_hostname }}.
+          Requested VLANs: {{ remove_vlan_id_list }}
+          Existing VLAN ID to name map: {{ vlan_id_name_map }}
+
+    - name: Build VLAN member tokens
+      ansible.builtin.set_fact:
+        vlan_member_tokens: "{{ vlan_member_tokens + [ item.key, item.value ] }}"
+      loop: "{{ requested_existing_vlan_name_map | dict2items }}"
+
+    - name: Remove duplicated VLAN member tokens
+      ansible.builtin.set_fact:
+        vlan_member_tokens: "{{ vlan_member_tokens | unique | list }}"
+
+    - name: Gather current L2 interface configuration
+      junipernetworks.junos.junos_l2_interfaces:
+        state: gathered
+      register: l2_info
+
+    - name: Build trunk VLAN member delete lines
+      ansible.builtin.set_fact:
+        trunk_member_delete_lines: "{{ trunk_member_delete_lines + [
+          'delete interfaces ' ~ item.0.name ~ ' unit ' ~ (item.0.unit | default(effective_interface_unit)) ~ ' family ethernet-switching vlan members ' ~ item.1
+        ] }}"
+      loop: "{{ (l2_info.gathered | default([])) | product(vlan_member_tokens) | list }}"
+      when:
+        - item.0.name is defined
+        - item.0.trunk is defined
+        - item.0.trunk.allowed_vlans is defined
+        - item.1 in (item.0.trunk.allowed_vlans | map('string') | list)
+        - interface_scope_all | bool or item.0.name in interface_list
+
+    - name: Build native VLAN delete lines when requested VLAN is native
+      ansible.builtin.set_fact:
+        native_vlan_delete_lines: "{{ native_vlan_delete_lines + [
+          'delete interfaces ' ~ item.name ~ ' unit ' ~ (item.unit | default(effective_interface_unit)) ~ ' family ethernet-switching native-vlan-id'
+        ] }}"
+      loop: "{{ l2_info.gathered | default([]) }}"
+      when:
+        - item.name is defined
+        - item.trunk is defined
+        - item.trunk.native_vlan is defined
+        - item.trunk.native_vlan | string in vlan_member_tokens
+        - interface_scope_all | bool or item.name in interface_list
+
+    - name: Build VLAN delete lines from switch
+      ansible.builtin.set_fact:
+        vlan_delete_lines: "{{ vlan_delete_lines + [
+          'delete vlans ' ~ item.value
+        ] }}"
+      loop: "{{ requested_existing_vlan_name_map | dict2items }}"
+      when: effective_delete_vlan_from_switch | bool
+
+    - name: Build final configuration lines
+      ansible.builtin.set_fact:
+        final_config_lines: >-
+          {{
+            (
+              trunk_member_delete_lines
+              + native_vlan_delete_lines
+              + vlan_delete_lines
+            )
+            | unique
+            | list
+          }}
+
+    - name: Show configuration that will be applied
+      ansible.builtin.debug:
+        msg:
+          - "Switch: {{ inventory_hostname }}"
+          - "Requested VLAN IDs to remove: {{ remove_vlan_id_list }}"
+          - "VLAN IDs not found on switch: {{ requested_missing_vlan_ids if requested_missing_vlan_ids | length > 0 else 'None' }}"
+          - "Detected VLAN ID to name map: {{ vlan_id_name_map }}"
+          - "VLANs that will be removed: {{ requested_existing_vlan_name_map }}"
+          - "Interface scope: {{ 'all trunks' if interface_scope_all | bool else interface_list }}"
+          - "Delete VLAN from switch: {{ effective_delete_vlan_from_switch }}"
+          - "Config lines:"
+          - "{{ final_config_lines }}"
+
+    - name: Stop if there are no configuration lines to apply
+      ansible.builtin.assert:
+        that:
+          - final_config_lines | length > 0
+        fail_msg: >
+          No configuration lines were generated.
+          The VLAN may not be configured on the selected trunks, or it may not exist on the switch.
+          Requested VLANs: {{ remove_vlan_id_list }}
+          Selected interfaces: {{ 'all trunks' if interface_scope_all | bool else interface_list }}
+
+    - name: Apply VLAN removal from trunks and switch
+      junipernetworks.junos.junos_config:
+        lines: "{{ final_config_lines }}"
+        comment: >-
+          Removed VLAN IDs {{ remove_vlan_id_list | join(',') }} from trunks via AWX.
+          Deleted VLAN objects from switch: {{ effective_delete_vlan_from_switch }}.
+      register: remove_result
+
+    - name: Show result
+      ansible.builtin.debug:
+        msg:
+          - "Backup saved at: {{ backup_result.backup_path | default('N/A') }}"
+          - "Switch: {{ inventory_hostname }}"
+          - "Requested VLAN IDs removed: {{ remove_vlan_id_list | join(', ') }}"
+          - "VLAN names removed: {{ requested_existing_vlan_name_map }}"
+          - "VLAN IDs not found: {{ requested_missing_vlan_ids if requested_missing_vlan_ids | length > 0 else 'None' }}"
+          - "Interface scope: {{ 'all trunks' if interface_scope_all | bool else interface_list }}"
+          - "Config applied:"
+          - "{{ final_config_lines }}"
