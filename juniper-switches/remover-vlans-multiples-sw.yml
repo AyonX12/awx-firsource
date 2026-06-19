@@ -16,8 +16,6 @@
         that:
           - effective_vlans_to_remove | string | length > 0
           - selected_interface_mode in ['trunk', 'access', 'all']
-          - not effective_upload_backup_tftp | bool or ftp_host is defined
-          - not effective_upload_backup_tftp | bool or ftp_host | string | length > 0
         fail_msg: >
           Missing or invalid variables.
           Required examples:
