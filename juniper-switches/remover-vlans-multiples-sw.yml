@@ -3,10 +3,6 @@
   hosts: "{{ target_hosts | default('all') }}"
   gather_facts: false
 
-  vars:
-    interface_unit: 0
-    delete_vlan_from_switch: true
-    upload_backup_tftp: true
 
   pre_tasks:
     - name: Set safe default variables
