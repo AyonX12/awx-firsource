@@ -1,27 +1,36 @@
 ---
-- name: Remove requested VLANs from Junos trunks and switch
+- name: Remove requested VLANs from Junos interfaces and switch
   hosts: "{{ target_hosts | default('all') }}"
   gather_facts: false
-
 
   pre_tasks:
     - name: Set safe default variables
       ansible.builtin.set_fact:
         effective_interface_unit: "{{ interface_unit | default(0) }}"
+        selected_interface_mode: "{{ interface_mode | default('trunk') | lower | trim }}"
         effective_delete_vlan_from_switch: "{{ delete_vlan_from_switch | default(true) }}"
         effective_vlans_to_remove: "{{ vlans_to_remove if vlans_to_remove is defined else (vlan_id | string if vlan_id is defined else '') }}"
 
     - name: Validate required variables
       ansible.builtin.assert:
         that:
-          - effective_vlans_to_remove | string | length > 00
+          - effective_vlans_to_remove | string | length > 0
+          - selected_interface_mode in ['trunk', 'access', 'all']
+          - not effective_upload_backup_tftp | bool or ftp_host is defined
+          - not effective_upload_backup_tftp | bool or ftp_host | string | length > 0
         fail_msg: >
-          Missing required variables.
-          Required example:
+          Missing or invalid variables.
+          Required examples:
           target_hosts="asw18"
           vlans_to_remove="126,130"
+          interface_mode="trunk"
           interfaces_to_update="all"
           ftp_host="10.58.121.13"
+
+          Valid interface_mode values are:
+          trunk
+          access
+          all
 
     - name: Convert VLAN input string to list
       ansible.builtin.set_fact:
@@ -98,6 +107,7 @@
         vlan_member_tokens: []
         trunk_member_delete_lines: []
         native_vlan_delete_lines: []
+        access_member_delete_lines: []
         vlan_delete_lines: []
         final_config_lines: []
 
@@ -162,24 +172,46 @@
         ] }}"
       loop: "{{ (l2_info.gathered | default([])) | product(vlan_member_tokens) | list }}"
       when:
+        - selected_interface_mode in ['trunk', 'all']
         - item.0.name is defined
         - item.0.trunk is defined
         - item.0.trunk.allowed_vlans is defined
         - item.1 in (item.0.trunk.allowed_vlans | map('string') | list)
         - interface_scope_all | bool or item.0.name in interface_list
 
-    - name: Build native VLAN delete lines when requested VLAN is native
+    - name: Build native VLAN delete lines when requested VLAN is native on trunk
       ansible.builtin.set_fact:
         native_vlan_delete_lines: "{{ native_vlan_delete_lines + [
           'delete interfaces ' ~ item.name ~ ' unit ' ~ (item.unit | default(effective_interface_unit)) ~ ' family ethernet-switching native-vlan-id'
         ] }}"
       loop: "{{ l2_info.gathered | default([]) }}"
       when:
+        - selected_interface_mode in ['trunk', 'all']
         - item.name is defined
         - item.trunk is defined
         - item.trunk.native_vlan is defined
         - item.trunk.native_vlan | string in vlan_member_tokens
         - interface_scope_all | bool or item.name in interface_list
+
+    - name: Build access VLAN member delete lines
+      ansible.builtin.set_fact:
+        access_member_delete_lines: "{{ access_member_delete_lines + [
+          'delete interfaces ' ~ item.0.name ~ ' unit ' ~ (item.0.unit | default(effective_interface_unit)) ~ ' family ethernet-switching vlan members ' ~ item.1
+        ] }}"
+      loop: "{{ (l2_info.gathered | default([])) | product(vlan_member_tokens) | list }}"
+      when:
+        - selected_interface_mode in ['access', 'all']
+        - item.0.name is defined
+        - item.0.access is defined
+        - item.1 in (
+            [
+              item.0.access.vlan | default('') | string,
+              item.0.access.vlan_id | default('') | string
+            ]
+            | reject('equalto', '')
+            | list
+          )
+        - interface_scope_all | bool or item.0.name in interface_list
 
     - name: Build VLAN delete lines from switch
       ansible.builtin.set_fact:
@@ -196,6 +228,7 @@
             (
               trunk_member_delete_lines
               + native_vlan_delete_lines
+              + access_member_delete_lines
               + vlan_delete_lines
             )
             | unique
@@ -210,10 +243,22 @@
           - "VLAN IDs not found on switch: {{ requested_missing_vlan_ids if requested_missing_vlan_ids | length > 0 else 'None' }}"
           - "Detected VLAN ID to name map: {{ vlan_id_name_map }}"
           - "VLANs that will be removed: {{ requested_existing_vlan_name_map }}"
-          - "Interface scope: {{ 'all trunks' if interface_scope_all | bool else interface_list }}"
+          - "Interface mode selected for removal: {{ selected_interface_mode }}"
+          - "Interface scope: {{ 'all interfaces of selected mode' if interface_scope_all | bool else interface_list }}"
           - "Delete VLAN from switch: {{ effective_delete_vlan_from_switch }}"
           - "Config lines:"
           - "{{ final_config_lines }}"
+
+    - name: Stop if delete from switch is enabled but interface mode is not all
+      ansible.builtin.debug:
+        msg:
+          - "WARNING:"
+          - "delete_vlan_from_switch is enabled, but interface_mode is {{ selected_interface_mode }}."
+          - "If the VLAN is still used on other interface types, Junos may reject the commit."
+          - "For full cleanup, use interface_mode=all or set delete_vlan_from_switch=false."
+      when:
+        - effective_delete_vlan_from_switch | bool
+        - selected_interface_mode != 'all'
 
     - name: Stop if there are no configuration lines to apply
       ansible.builtin.assert:
@@ -221,15 +266,16 @@
           - final_config_lines | length > 0
         fail_msg: >
           No configuration lines were generated.
-          The VLAN may not be configured on the selected trunks, or it may not exist on the switch.
+          The VLAN may not be configured on the selected interface mode, or it may not exist on the switch.
           Requested VLANs: {{ remove_vlan_id_list }}
-          Selected interfaces: {{ 'all trunks' if interface_scope_all | bool else interface_list }}
+          Interface mode: {{ selected_interface_mode }}
+          Selected interfaces: {{ 'all interfaces of selected mode' if interface_scope_all | bool else interface_list }}
 
-    - name: Apply VLAN removal from trunks and switch
+    - name: Apply VLAN removal from selected interfaces and switch
       junipernetworks.junos.junos_config:
         lines: "{{ final_config_lines }}"
         comment: >-
-          Removed VLAN IDs {{ remove_vlan_id_list | join(',') }} from trunks via AWX.
+          Removed VLAN IDs {{ remove_vlan_id_list | join(',') }} from {{ selected_interface_mode }} interfaces via AWX.
           Deleted VLAN objects from switch: {{ effective_delete_vlan_from_switch }}.
       register: remove_result
 
@@ -241,6 +287,7 @@
           - "Requested VLAN IDs removed: {{ remove_vlan_id_list | join(', ') }}"
           - "VLAN names removed: {{ requested_existing_vlan_name_map }}"
           - "VLAN IDs not found: {{ requested_missing_vlan_ids if requested_missing_vlan_ids | length > 0 else 'None' }}"
-          - "Interface scope: {{ 'all trunks' if interface_scope_all | bool else interface_list }}"
+          - "Interface mode selected: {{ selected_interface_mode }}"
+          - "Interface scope: {{ 'all interfaces of selected mode' if interface_scope_all | bool else interface_list }}"
           - "Config applied:"
           - "{{ final_config_lines }}"
