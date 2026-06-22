@@ -7,7 +7,7 @@
      target_hosts: all
      interfaces_to_update: "ge-0/0/10,ge-0/0/11"
      disable_ports: false
-
+     
   pre_tasks:
     - name: Set effective interface input
       ansible.builtin.set_fact:
