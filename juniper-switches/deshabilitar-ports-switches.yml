@@ -1,0 +1,70 @@
+---
+- name: Disable selected Junos switch ports
+  hosts: "{{ target_hosts | default('all') }}"
+  gather_facts: false
+
+  vars:
+    ansible_command_timeout: 120
+    ansible_connect_timeout: 60
+    target_hosts: all
+    interfaces_to_disable: "ge-0/0/10,ge-0/0/11"
+
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - interfaces_to_disable is defined
+          - interfaces_to_disable | string | length > 0
+        fail_msg: >
+          Missing required variables.
+          Example:
+          target_hosts="asw18"
+          interfaces_to_disable="ge-0/0/0,ge-0/0/1"
+
+    - name: Convert interface input string to list
+      ansible.builtin.set_fact:
+        interface_list: "{{ interfaces_to_disable.split(',') | map('trim') | reject('equalto', '') | list }}"
+
+    - name: Validate interface list is not empty
+      ansible.builtin.assert:
+        that:
+          - interface_list | length > 0
+        fail_msg: "No valid interfaces were provided."
+
+    - name: Validate interface format
+      ansible.builtin.assert:
+        that:
+          - item is match('^(ge|xe|et|mge)-[0-9]+/[0-9]+/[0-9]+$|^ae[0-9]+$')
+        fail_msg: "Invalid interface format: {{ item }}"
+      loop: "{{ interface_list }}"
+
+
+  tasks:
+
+    - name: Build disable interface configuration lines
+      ansible.builtin.set_fact:
+        disable_interface_lines: "{{ disable_interface_lines | default([]) + [
+          'set interfaces ' ~ item ~ ' disable'
+        ] }}"
+      loop: "{{ interface_list }}"
+
+    - name: Show configuration that will be applied
+      ansible.builtin.debug:
+        msg:
+          - "Switch: {{ inventory_hostname }}"
+          - "Interfaces to disable: {{ interface_list | join(', ') }}"
+          - "Config lines:"
+          - "{{ disable_interface_lines }}"
+
+    - name: Disable selected interfaces
+      junipernetworks.junos.junos_config:
+        lines: "{{ disable_interface_lines }}"
+        comment: "Disabled interfaces {{ interface_list | join(',') }} via AWX/Ansible"
+      register: disable_result
+
+    - name: Show result
+      ansible.builtin.debug:
+        msg:
+          - "Switch: {{ inventory_hostname }}"
+          - "Interfaces disabled: {{ interface_list | join(', ') }}"
+          - "Backup saved at: {{ backup_result.backup_path | default('Backup disabled') }}"
