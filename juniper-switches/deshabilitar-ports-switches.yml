@@ -1,29 +1,51 @@
 ---
-- name: Disable selected Junos switch ports
+- name: Enable or disable selected Junos switch ports
   hosts: "{{ target_hosts | default('all') }}"
   gather_facts: false
 
   vars:
-    ansible_command_timeout: 120
-    ansible_connect_timeout: 60
-    target_hosts: all
-    interfaces_to_disable: "ge-0/0/10,ge-0/0/11"
+     target_hosts: all
+     interfaces_to_update: "ge-0/0/10,ge-0/0/11"
+     disable_ports: false
 
   pre_tasks:
+    - name: Set effective interface input
+      ansible.builtin.set_fact:
+        effective_interfaces_input: >-
+          {{
+            interfaces_to_update
+            if interfaces_to_update is defined
+            else (
+              interfaces_to_disable
+              if interfaces_to_disable is defined
+              else ''
+            )
+          }}
+
     - name: Validate required variables
       ansible.builtin.assert:
         that:
-          - interfaces_to_disable is defined
-          - interfaces_to_disable | string | length > 0
+          - effective_interfaces_input | string | length > 0
+          - disable_ports is defined
         fail_msg: >
           Missing required variables.
-          Example:
+          Example to disable:
           target_hosts="asw18"
-          interfaces_to_disable="ge-0/0/0,ge-0/0/1"
+          interfaces_to_update="ge-0/0/0,ge-0/0/1"
+          disable_ports=true
+
+          Example to enable:
+          target_hosts="asw18"
+          interfaces_to_update="ge-0/0/0,ge-0/0/1"
+          disable_ports=false
+
+    - name: Normalize requested port action
+      ansible.builtin.set_fact:
+        requested_disable_ports: "{{ disable_ports | bool }}"
 
     - name: Convert interface input string to list
       ansible.builtin.set_fact:
-        interface_list: "{{ interfaces_to_disable.split(',') | map('trim') | reject('equalto', '') | list }}"
+        interface_list: "{{ effective_interfaces_input.split(',') | map('trim') | reject('equalto', '') | list }}"
 
     - name: Validate interface list is not empty
       ansible.builtin.assert:
@@ -38,33 +60,108 @@
         fail_msg: "Invalid interface format: {{ item }}"
       loop: "{{ interface_list }}"
 
-
   tasks:
+    - name: Initialize variables
+      ansible.builtin.set_fact:
+        interface_disable_state_map: {}
+        interface_config_lines_map: {}
+        config_lines: []
+        already_correct_interfaces: []
+        interfaces_to_change: []
+
+    - name: Get current configuration for selected interfaces
+      junipernetworks.junos.junos_command:
+        commands:
+          - "show configuration interfaces {{ item }}"
+      loop: "{{ interface_list }}"
+      register: interface_config_result
+
+    - name: Build interface config lines map
+      ansible.builtin.set_fact:
+        interface_config_lines_map: >-
+          {{
+            interface_config_lines_map
+            | combine({
+                item.item: item.stdout_lines[0] | default([])
+              })
+          }}
+      loop: "{{ interface_config_result.results }}"
+
+    - name: Detect current disabled state per interface
+      ansible.builtin.set_fact:
+        interface_disable_state_map: >-
+          {{
+            interface_disable_state_map
+            | combine({
+                item.key: (
+                  'disable;' in (item.value | map('trim') | list)
+                )
+              })
+          }}
+      loop: "{{ interface_config_lines_map | dict2items }}"
+
+    - name: Build list of interfaces that already match requested state
+      ansible.builtin.set_fact:
+        already_correct_interfaces: "{{ already_correct_interfaces + [ item.key ] }}"
+      loop: "{{ interface_disable_state_map | dict2items }}"
+      when:
+        - item.value | bool == requested_disable_ports | bool
+
+    - name: Build list of interfaces that need change
+      ansible.builtin.set_fact:
+        interfaces_to_change: "{{ interfaces_to_change + [ item.key ] }}"
+      loop: "{{ interface_disable_state_map | dict2items }}"
+      when:
+        - item.value | bool != requested_disable_ports | bool
 
     - name: Build disable interface configuration lines
       ansible.builtin.set_fact:
-        disable_interface_lines: "{{ disable_interface_lines | default([]) + [
+        config_lines: "{{ config_lines + [
           'set interfaces ' ~ item ~ ' disable'
         ] }}"
-      loop: "{{ interface_list }}"
+      loop: "{{ interfaces_to_change }}"
+      when: requested_disable_ports | bool
 
-    - name: Show configuration that will be applied
+    - name: Build enable interface configuration lines
+      ansible.builtin.set_fact:
+        config_lines: "{{ config_lines + [
+          'delete interfaces ' ~ item ~ ' disable'
+        ] }}"
+      loop: "{{ interfaces_to_change }}"
+      when: not requested_disable_ports | bool
+
+    - name: Show current interface status and planned action
       ansible.builtin.debug:
         msg:
           - "Switch: {{ inventory_hostname }}"
-          - "Interfaces to disable: {{ interface_list | join(', ') }}"
+          - "Requested action: {{ 'disable ports' if requested_disable_ports | bool else 'enable ports' }}"
+          - "Requested interfaces: {{ interface_list | join(', ') }}"
+          - "Current disabled state: {{ interface_disable_state_map }}"
+          - "Already correct interfaces: {{ already_correct_interfaces | join(', ') if already_correct_interfaces | length > 0 else 'None' }}"
+          - "Interfaces that will be changed: {{ interfaces_to_change | join(', ') if interfaces_to_change | length > 0 else 'None' }}"
           - "Config lines:"
-          - "{{ disable_interface_lines }}"
+          - "{{ config_lines }}"
 
-    - name: Disable selected interfaces
+    - name: Stop if no changes are needed
+      ansible.builtin.debug:
+        msg:
+          - "No changes needed on {{ inventory_hostname }}."
+          - "All requested interfaces are already {{ 'disabled' if requested_disable_ports | bool else 'enabled' }}."
+      when: config_lines | length == 0
+
+    - name: Apply interface enable or disable configuration
       junipernetworks.junos.junos_config:
-        lines: "{{ disable_interface_lines }}"
-        comment: "Disabled interfaces {{ interface_list | join(',') }} via AWX/Ansible"
-      register: disable_result
+        lines: "{{ config_lines }}"
+        comment: >-
+          {{ 'Disabled' if requested_disable_ports | bool else 'Enabled' }}
+          interfaces {{ interfaces_to_change | join(',') }} via AWX/Ansible
+      register: port_change_result
+      when: config_lines | length > 0
 
     - name: Show result
       ansible.builtin.debug:
         msg:
           - "Switch: {{ inventory_hostname }}"
-          - "Interfaces disabled: {{ interface_list | join(', ') }}"
-          - "Backup saved at: {{ backup_result.backup_path | default('Backup disabled') }}"
+          - "Action applied: {{ 'disabled' if requested_disable_ports | bool else 'enabled' }}"
+          - "Interfaces changed: {{ interfaces_to_change | join(', ') if interfaces_to_change | length > 0 else 'None' }}"
+          - "Interfaces already correct: {{ already_correct_interfaces | join(', ') if already_correct_interfaces | length > 0 else 'None' }}"
