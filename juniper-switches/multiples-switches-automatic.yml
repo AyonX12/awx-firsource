@@ -2,6 +2,8 @@
 - name: Build VLAN propagation target list from selected access switch
   hosts: "{{ target_hosts | default('all') }}"
   gather_facts: false
+
+  vars:
     # IMPORTANTE:
     # Este mapa se configura una sola vez.
     # La llave debe ser el nombre del host en tu inventario/AWX.
