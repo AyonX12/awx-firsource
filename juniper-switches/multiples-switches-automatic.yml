@@ -4,6 +4,8 @@
   gather_facts: false
 
   vars:
+    interface_mode: "trunk"
+
     # IMPORTANTE:
     # Este mapa se configura una sola vez.
     # La llave debe ser el nombre del host en tu inventario/AWX.
@@ -13,216 +15,211 @@
     #
     # upstream:
     #   Son los switches superiores donde también se debe permitir la VLAN.
-    #   En interfaces debes poner los trunks/uplinks donde quieres propagar la VLAN.
     #
-    # Ajusta este mapa con base en tu diagrama real.
     upstream_path_map:
-  # =========================
-  # ACCESS SWITCHES 01 - 08
-  # Upstream: CSW01 / CSW02
-  # =========================
-              asw01:
-                local_interfaces: "ge-0/0/46,ge-0/0/47"
-                upstream:
-                  - host: csw01
-                    interfaces: "ge-0/0/1, ge-1/0/1"
+      # =========================
+      # ACCESS SWITCHES 01 - 08
+      # Upstream: CSW01
+      # =========================
 
-              asw02:
-                local_interfaces: "ge-0/0/46,ge-0/0/47"
-                upstream:
-                  - host: csw01
-                    interfaces: "ge-0/0/2, ge-1/0/2"
+      asw01:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: csw01
+            interfaces: "ge-0/0/1,ge-1/0/1"
 
-              asw03:
-                local_interfaces: "ge-0/0/46,ge-0/0/47"
-                upstream:
-                  - host: csw01
-                    interfaces: "ge-0/0/3, ge-1/0/3"
-   
-              asw04:
-                local_interfaces: "ge-0/0/46,ge-0/0/47"
-                upstream:
-                  - host: csw01
-                    interfaces: "ge-0/0/4, ge-1/0/4"
+      asw02:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: csw01
+            interfaces: "ge-0/0/2,ge-1/0/2"
 
-              asw05:
-                local_interfaces: "ge-0/0/46,ge-0/0/47"
-                upstream:
-                  - host: csw01
-                    interfaces: "ge-0/0/5, ge-1/0/5"
+      asw03:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: csw01
+            interfaces: "ge-0/0/3,ge-1/0/3"
 
-              asw06:
-                local_interfaces: "ge-0/0/46,ge-0/0/47"
-                upstream:
-                  - host: csw01
-                    interfaces: "ge-0/0/6, ge-1/0/6"
+      asw04:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: csw01
+            interfaces: "ge-0/0/4,ge-1/0/4"
 
-              asw07:
-                local_interfaces: "ge-0/0/46,ge-0/0/47"
-                upstream:
-                  - host: csw01
-                    interfaces: "ge-0/0/7, ge-1/0/7"
+      asw05:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: csw01
+            interfaces: "ge-0/0/5,ge-1/0/5"
 
-              asw08:
-                local_interfaces: "ge-0/0/46,ge-0/0/47"
-                upstream:
-                  - host: csw01
-                    interfaces: "ge-0/0/8, ge-1/0/8"
+      asw06:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: csw01
+            interfaces: "ge-0/0/6,ge-1/0/6"
 
-              # =========================
-              # ACCESS SWITCHES 09 - 17
-              # Upstream: DSW01 / DSW02
-              # =========================
+      asw07:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: csw01
+            interfaces: "ge-0/0/7,ge-1/0/7"
 
-              asw09:
-                local_interfaces: "ge-0/0/46,ge-0/0/47"
-                upstream:
-                  - host: dsw01
-                    interfaces: "ge-0/0/0,xe-0/2/0"
-                  - host: dsw02
-                    interfaces: "ge-0/0/0,xe-0/2/0"
-                  - host: csw01
-                    interfaces: "xe-0/2/0,xe-1/2/0"
+      asw08:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: csw01
+            interfaces: "ge-0/0/8,ge-1/0/8"
 
+      # =========================
+      # ACCESS SWITCHES 09 - 17
+      # Upstream: DSW01 / DSW02 / CSW01
+      # =========================
 
-              asw10:
-                local_interfaces: "ge-0/0/46,ge-0/0/47"
-                upstream:
-                  - host: dsw01
-                    interfaces: "ge-0/0/1,xe-0/2/0"
-                  - host: dsw02
-                    interfaces: "ge-0/0/1,xe-0/2/0"
-                  - host: csw01
-                    interfaces: "xe-0/2/0,xe-1/2/0"
+      asw09:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: dsw01
+            interfaces: "ge-0/0/0,xe-0/2/0"
+          - host: dsw02
+            interfaces: "ge-0/0/0,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
 
-              asw11:
-                local_interfaces: "ge-0/0/46,ge-0/0/47"
-                upstream:
-                  - host: dsw01
-                    interfaces: "ge-0/0/2,xe-0/2/0"
-                  - host: dsw02
-                    interfaces: "ge-0/0/2,xe-0/2/0"
-                  - host: csw01
-                    interfaces: "xe-0/2/0,xe-1/2/0"
+      asw10:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: dsw01
+            interfaces: "ge-0/0/1,xe-0/2/0"
+          - host: dsw02
+            interfaces: "ge-0/0/1,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
 
-              asw12:
-                local_interfaces: "ge-0/0/46,ge-0/0/47"
-                upstream:
-                  - host: dsw01
-                    interfaces: "ge-0/0/3,xe-0/2/0"
-                  - host: dsw02
-                    interfaces: "ge-0/0/3,xe-0/2/0"
-                  - host: csw01
-                    interfaces: "xe-0/2/0,xe-1/2/0"
+      asw11:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: dsw01
+            interfaces: "ge-0/0/2,xe-0/2/0"
+          - host: dsw02
+            interfaces: "ge-0/0/2,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
 
-              asw13:
-                local_interfaces: "ge-0/0/46,ge-0/0/47"
-                upstream:
-                  - host: dsw01
-                    interfaces: "ge-0/0/4,xe-0/2/0"
-                  - host: dsw02
-                    interfaces: "ge-0/0/4,xe-0/2/0"
-                  - host: csw01
-                    interfaces: "xe-0/2/0,xe-1/2/0"
+      asw12:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: dsw01
+            interfaces: "ge-0/0/3,xe-0/2/0"
+          - host: dsw02
+            interfaces: "ge-0/0/3,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
 
-              asw14:
-                local_interfaces: "ge-0/0/46,ge-0/0/47"
-                upstream:
-                  - host: dsw01
-                    interfaces: "ge-0/0/5,xe-0/2/0"
-                  - host: dsw02
-                    interfaces: "ge-0/0/5,xe-0/2/0"
-                  - host: csw01
-                    interfaces: "xe-0/2/0,xe-1/2/0"
+      asw13:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: dsw01
+            interfaces: "ge-0/0/4,xe-0/2/0"
+          - host: dsw02
+            interfaces: "ge-0/0/4,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
 
-              asw15:
-                local_interfaces: "ge-0/0/46,ge-0/0/47"
-                upstream:
-                  - host: dsw01
-                    interfaces: "ge-0/0/6,xe-0/2/0"
-                  - host: dsw02
-                    interfaces: "ge-0/0/6,xe-0/2/0"
-                  - host: csw01
-                    interfaces: "xe-0/2/0,xe-1/2/0"
-              asw16:
-                local_interfaces: "ge-0/0/46,ge-0/0/47"
-                upstream:
-                  - host: dsw01
-                    interfaces: "ge-0/0/7,xe-0/2/0"
-                  - host: dsw02
-                    interfaces: "ge-0/0/7,xe-0/2/0"
-                  - host: csw01
-                    interfaces: "xe-0/2/0,xe-1/2/0"
+      asw14:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: dsw01
+            interfaces: "ge-0/0/5,xe-0/2/0"
+          - host: dsw02
+            interfaces: "ge-0/0/5,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
 
-              asw17:
-                local_interfaces: "ge-0/0/46,ge-0/0/47"
-                upstream:
-                  - host: dsw01
-                    interfaces: "ge-0/0/8,xe-0/2/0"
-                  - host: dsw02
-                    interfaces: "ge-0/0/8,xe-0/2/0"
-                  - host: csw01
-                    interfaces: "xe-0/2/0,xe-1/2/0"
+      asw15:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: dsw01
+            interfaces: "ge-0/0/6,xe-0/2/0"
+          - host: dsw02
+            interfaces: "ge-0/0/6,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
 
+      asw16:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: dsw01
+            interfaces: "ge-0/0/7,xe-0/2/0"
+          - host: dsw02
+            interfaces: "ge-0/0/7,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
 
-              # =========================
-              # ACCESS SWITCH 22
-              # Upstream: DSW01 / DSW02
-              # =========================
+      asw17:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: dsw01
+            interfaces: "ge-0/0/8,xe-0/2/0"
+          - host: dsw02
+            interfaces: "ge-0/0/8,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
 
-              asw22:
-                local_interfaces: "ge-0/2/0,ge-0/2/1"
-                upstream:
-                  - host: dsw01
-                    interfaces: "ge-0/0/9,xe-0/2/0"
-                  - host: dsw02
-                    interfaces: "ge-0/0/9,xe-0/2/0"
-                  - host: csw01
-                    interfaces: "xe-0/2/0,xe-1/2/0"
+      # =========================
+      # ACCESS SWITCH 22
+      # Upstream: DSW01 / DSW02 / CSW01
+      # =========================
 
-              # =========================
-              # ACCESS SWITCHES 19 - 21
-              # Upstream: DSW04
-              # =========================
+      asw22:
+        local_interfaces: "ge-0/2/0,ge-0/2/1"
+        upstream:
+          - host: dsw01
+            interfaces: "ge-0/0/9,xe-0/2/0"
+          - host: dsw02
+            interfaces: "ge-0/0/9,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
 
-              asw19:
-                    local_interfaces: "ge-0/2/0,ge-0/2/1"
-                    upstream:
-                      - host: dsw03
-                        interfaces: "ge-0/0/4,xe-0/2/3"
-                      - host: dsw04
-                        interfaces: "ge-0/0/0,xe-0/2/2"
-                      - host: csw01
-                        interfaces: "xe-1/2/1,xe-0/2/1"
-              asw21:
-                local_interfaces: "ge-0/2/0"
-                upstream:
-                  - host: dsw04
-                    interfaces: "ge-0/0/1,xe-0/2/2"
-                  - host: dsw03
-                    interfaces: "ge-0/0/5,xe-0/2/3"
-                  - host: csw01
-                    interfaces: "xe-1/2/1,xe-0/2/1"
-              asw20:
-                local_interfaces: "ge-0/2/0,ge-0/2/1"
-                upstream:
-                  - host: dsw04
-                    interfaces: "ge-0/0/2,xe-0/2/2"
-                  - host: dsw03
-                    interfaces: "ge-0/0/6,xe-0/2/3"
-                  - host: csw01
-                    interfaces: "xe-0/2/0,xe-1/2/0"
+      # =========================
+      # ACCESS SWITCHES 19 - 21
+      # Upstream: DSW03 / DSW04 / CSW01
+      # =========================
 
-                # Ejemplo adicional:
-                # asw19:
-                #   local_interfaces: "ge-0/2/1"
-                #   upstream:
-                #     - host: dsw04
-                #       interfaces: "ge-0/0/0"
-                #     - host: csw01
-                #       interfaces: "xe-0/2/0"
+      asw19:
+        local_interfaces: "ge-0/2/0,ge-0/2/1"
+        upstream:
+          - host: dsw03
+            interfaces: "ge-0/0/4,xe-0/2/3"
+          - host: dsw04
+            interfaces: "ge-0/0/0,xe-0/2/2"
+          - host: csw01
+            interfaces: "xe-1/2/1,xe-0/2/1"
+
+      asw21:
+        local_interfaces: "ge-0/2/0"
+        upstream:
+          - host: dsw04
+            interfaces: "ge-0/0/1,xe-0/2/2"
+          - host: dsw03
+            interfaces: "ge-0/0/5,xe-0/2/3"
+          - host: csw01
+            interfaces: "xe-1/2/1,xe-0/2/1"
+
+      asw20:
+        local_interfaces: "ge-0/2/0,ge-0/2/1"
+        upstream:
+          - host: dsw04
+            interfaces: "ge-0/0/2,xe-0/2/2"
+          - host: dsw03
+            interfaces: "ge-0/0/6,xe-0/2/3"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
 
   pre_tasks:
+    - name: Normalize requested interface mode
+      ansible.builtin.set_fact:
+        requested_interface_mode: "{{ interface_mode | default('trunk') | lower | trim }}"
+
     - name: Validate only one access switch was selected
       ansible.builtin.assert:
         that:
@@ -232,6 +229,16 @@
           Use target_hosts with a single switch.
           Example:
           target_hosts="asw19"
+
+    - name: Validate requested interface mode
+      ansible.builtin.assert:
+        that:
+          - requested_interface_mode in ['trunk', 'access']
+        fail_msg: >
+          Invalid interface_mode.
+          Valid values are:
+          interface_mode="trunk"
+          interface_mode="access"
 
     - name: Validate required VLAN variable
       ansible.builtin.assert:
@@ -247,37 +254,29 @@
       ansible.builtin.set_fact:
         access_topology: "{{ upstream_path_map.get(inventory_hostname, {}) }}"
 
-    - name: Define selected access switch local interfaces
+    - name: Define selected access switch user interfaces
       ansible.builtin.set_fact:
-        selected_access_interfaces: >-
+        selected_user_interfaces: >-
           {{
             interfaces_to_update
             if (
               interfaces_to_update is defined
               and interfaces_to_update | string | trim | length > 0
             )
-            else (
-              access_topology.local_interfaces | default('')
-            )
+            else ''
           }}
 
     - name: Validate access switch exists in upstream map
       ansible.builtin.assert:
         that:
           - access_topology | length > 0
-          - selected_access_interfaces | string | length > 0
+          - access_topology.local_interfaces is defined
+          - access_topology.local_interfaces | string | length > 0
           - access_topology.upstream is defined
           - access_topology.upstream | length > 0
         fail_msg: >
           The selected access switch {{ inventory_hostname }} does not have a valid upstream path configured.
           Add it under upstream_path_map.
-          Example:
-          upstream_path_map:
-            {{ inventory_hostname }}:
-              local_interfaces: "ge-0/0/46,ge-0/0/47"
-              upstream:
-                - host: dsw01
-                  interfaces: "ge-0/0/1"
 
     - name: Validate upstream entries
       ansible.builtin.assert:
@@ -295,7 +294,9 @@
         name: "{{ inventory_hostname }}"
         groups: dynamic_vlan_propagation_targets
         propagation_role: "selected_access_switch"
-        propagation_interfaces: "{{ selected_access_interfaces }}"
+        propagation_interfaces: "{{ access_topology.local_interfaces }}"
+        selected_switch_interfaces: "{{ selected_user_interfaces }}"
+        selected_switch_interface_mode: "{{ requested_interface_mode }}"
 
     - name: Add upstream switches to dynamic propagation group
       ansible.builtin.add_host:
@@ -303,13 +304,17 @@
         groups: dynamic_vlan_propagation_targets
         propagation_role: "upstream_switch"
         propagation_interfaces: "{{ item.interfaces }}"
+        selected_switch_interfaces: ""
+        selected_switch_interface_mode: "trunk"
       loop: "{{ access_topology.upstream }}"
 
     - name: Show propagation path
       ansible.builtin.debug:
         msg:
           - "Selected access switch: {{ inventory_hostname }}"
-          - "Access switch interfaces: {{ selected_access_interfaces }}"
+          - "Selected switch user interfaces: {{ selected_user_interfaces if selected_user_interfaces | length > 0 else 'None' }}"
+          - "Selected switch interface mode: {{ requested_interface_mode }}"
+          - "Access switch uplinks/trunks: {{ access_topology.local_interfaces }}"
           - "Upstream switches:"
           - "{{ access_topology.upstream }}"
 
@@ -322,6 +327,7 @@
   vars:
     interface_unit: 0
     vlan_name_prefix: "vlan"
+    rstp_edge_on_access: true
     ansible_command_timeout: 120
     ansible_connect_timeout: 60
 
@@ -330,7 +336,7 @@
       ansible.builtin.set_fact:
         effective_interface_unit: "{{ interface_unit | default(0) }}"
         effective_vlan_name_prefix: "{{ vlan_name_prefix | default('vlan') }}"
-        selected_interface_mode: "trunk"
+        effective_rstp_edge_on_access: "{{ rstp_edge_on_access | default(true) }}"
 
     - name: Validate required variables
       ansible.builtin.assert:
@@ -339,6 +345,8 @@
           - vlans_to_add | string | length > 0
           - propagation_interfaces is defined
           - propagation_interfaces | string | length > 0
+          - selected_switch_interface_mode is defined
+          - selected_switch_interface_mode in ['trunk', 'access']
         fail_msg: >
           Missing required variables.
           Example:
@@ -390,9 +398,32 @@
           Duplicate VLAN IDs were found in vlans_to_add.
           Current VLAN list: {{ vlan_list }}
 
-    - name: Convert propagation interface input string to list
+    - name: Convert propagation trunk interface input string to list
       ansible.builtin.set_fact:
-        interface_list: "{{ propagation_interfaces.split(',') | map('trim') | reject('equalto', '') | list }}"
+        propagation_interface_list: "{{ propagation_interfaces.split(',') | map('trim') | reject('equalto', '') | list }}"
+
+    - name: Convert selected switch user interface input string to list
+      ansible.builtin.set_fact:
+        selected_switch_interface_list: >-
+          {{
+            selected_switch_interfaces.split(',') | map('trim') | reject('equalto', '') | list
+            if (
+              selected_switch_interfaces is defined
+              and selected_switch_interfaces | string | trim | length > 0
+            )
+            else []
+          }}
+
+    - name: Validate access mode only has one VLAN for selected switch user interfaces
+      ansible.builtin.assert:
+        that:
+          - selected_switch_interface_mode != 'access' or vlan_list | length == 1
+        fail_msg: >
+          Access mode only supports one VLAN.
+          Example:
+          interface_mode="access"
+          vlans_to_add="116:Name_Of_VLAN"
+      when: selected_switch_interface_list | length > 0
 
     - name: Validate VLAN IDs
       ansible.builtin.assert:
@@ -402,12 +433,20 @@
         fail_msg: "Invalid VLAN ID: {{ item }}. Valid range is 1-4094."
       loop: "{{ vlan_list }}"
 
-    - name: Validate interface format
+    - name: Validate propagation interface format
       ansible.builtin.assert:
         that:
           - item is match('^(ge|xe|et|mge)-[0-9]+/[0-9]+/[0-9]+$|^ae[0-9]+$')
-        fail_msg: "Invalid interface format: {{ item }}"
-      loop: "{{ interface_list }}"
+        fail_msg: "Invalid propagation interface format: {{ item }}"
+      loop: "{{ propagation_interface_list }}"
+
+    - name: Validate selected switch user interface format
+      ansible.builtin.assert:
+        that:
+          - item is match('^(ge|xe|et|mge)-[0-9]+/[0-9]+/[0-9]+$|^ae[0-9]+$')
+        fail_msg: "Invalid selected switch user interface format: {{ item }}"
+      loop: "{{ selected_switch_interface_list }}"
+      when: selected_switch_interface_list | length > 0
 
   tasks:
     - name: Initialize configuration variables
@@ -418,8 +457,12 @@
         missing_vlan_ids: []
         vlan_name_conflict_map: {}
         vlan_config_lines: []
-        interface_mode_lines: []
-        vlan_member_lines: []
+        propagation_trunk_mode_lines: []
+        propagation_vlan_member_lines: []
+        selected_trunk_mode_lines: []
+        selected_trunk_vlan_member_lines: []
+        selected_access_lines: []
+        rstp_access_lines: []
         final_config_lines: []
 
     - name: Gather existing VLANs from Junos
@@ -510,27 +553,83 @@
       when:
         - missing_vlan_ids | length > 0
 
-    - name: Build trunk interface mode lines
+    - name: Build propagation trunk interface mode lines
       ansible.builtin.set_fact:
-        interface_mode_lines: "{{ interface_mode_lines + [
+        propagation_trunk_mode_lines: "{{ propagation_trunk_mode_lines + [
           'set interfaces ' ~ item ~ ' unit ' ~ effective_interface_unit ~ ' family ethernet-switching interface-mode trunk'
         ] }}"
-      loop: "{{ interface_list }}"
+      loop: "{{ propagation_interface_list }}"
 
     - name: Build VLAN member lines for propagation trunks
       ansible.builtin.set_fact:
-        vlan_member_lines: "{{ vlan_member_lines + [
+        propagation_vlan_member_lines: "{{ propagation_vlan_member_lines + [
           'set interfaces ' ~ item.0 ~ ' unit ' ~ effective_interface_unit ~ ' family ethernet-switching vlan members ' ~ requested_vlan_name_map[item.1]
         ] }}"
-      loop: "{{ interface_list | product(vlan_list) | list }}"
+      loop: "{{ propagation_interface_list | product(vlan_list) | list }}"
+
+    - name: Build selected switch trunk interface mode lines
+      ansible.builtin.set_fact:
+        selected_trunk_mode_lines: "{{ selected_trunk_mode_lines + [
+          'set interfaces ' ~ item ~ ' unit ' ~ effective_interface_unit ~ ' family ethernet-switching interface-mode trunk'
+        ] }}"
+      loop: "{{ selected_switch_interface_list }}"
+      when:
+        - propagation_role == "selected_access_switch"
+        - selected_switch_interface_list | length > 0
+        - selected_switch_interface_mode == "trunk"
+
+    - name: Build selected switch trunk VLAN member lines
+      ansible.builtin.set_fact:
+        selected_trunk_vlan_member_lines: "{{ selected_trunk_vlan_member_lines + [
+          'set interfaces ' ~ item.0 ~ ' unit ' ~ effective_interface_unit ~ ' family ethernet-switching vlan members ' ~ requested_vlan_name_map[item.1]
+        ] }}"
+      loop: "{{ selected_switch_interface_list | product(vlan_list) | list }}"
+      when:
+        - propagation_role == "selected_access_switch"
+        - selected_switch_interface_list | length > 0
+        - selected_switch_interface_mode == "trunk"
+
+    - name: Build selected switch access interface lines
+      ansible.builtin.set_fact:
+        selected_access_lines: "{{ selected_access_lines + [
+          'delete interfaces ' ~ item ~ ' unit ' ~ effective_interface_unit ~ ' family ethernet-switching vlan members ' ~ requested_vlan_name_map[vlan_list[0]],
+          'set interfaces ' ~ item ~ ' unit ' ~ effective_interface_unit ~ ' family ethernet-switching interface-mode access',
+          'set interfaces ' ~ item ~ ' unit ' ~ effective_interface_unit ~ ' family ethernet-switching vlan members ' ~ requested_vlan_name_map[vlan_list[0]]
+        ] }}"
+      loop: "{{ selected_switch_interface_list }}"
+      when:
+        - propagation_role == "selected_access_switch"
+        - selected_switch_interface_list | length > 0
+        - selected_switch_interface_mode == "access"
+
+    - name: Build RSTP edge lines for access interfaces
+      ansible.builtin.set_fact:
+        rstp_access_lines: "{{ rstp_access_lines + [
+          'set protocols rstp interface ' ~ item,
+          'set protocols rstp interface ' ~ item ~ ' edge'
+        ] }}"
+      loop: "{{ selected_switch_interface_list }}"
+      when:
+        - propagation_role == "selected_access_switch"
+        - selected_switch_interface_list | length > 0
+        - selected_switch_interface_mode == "access"
+        - effective_rstp_edge_on_access | bool
 
     - name: Build final configuration lines
       ansible.builtin.set_fact:
         final_config_lines: >-
           {{
-            vlan_config_lines
-            + interface_mode_lines
-            + vlan_member_lines
+            (
+              vlan_config_lines
+              + propagation_trunk_mode_lines
+              + propagation_vlan_member_lines
+              + selected_trunk_mode_lines
+              + selected_trunk_vlan_member_lines
+              + selected_access_lines
+              + rstp_access_lines
+            )
+            | unique
+            | list
           }}
 
     - name: Show configuration that will be applied
@@ -538,7 +637,9 @@
         msg:
           - "Switch: {{ inventory_hostname }}"
           - "Role: {{ propagation_role | default('unknown') }}"
-          - "Interfaces: {{ interface_list }}"
+          - "Propagation trunk interfaces: {{ propagation_interface_list }}"
+          - "Selected switch user interfaces: {{ selected_switch_interface_list if selected_switch_interface_list | length > 0 else 'None' }}"
+          - "Selected switch user interface mode: {{ selected_switch_interface_mode }}"
           - "Requested VLAN IDs: {{ vlan_list }}"
           - "VLAN names that will be used: {{ requested_vlan_name_map }}"
           - "Existing VLAN ID to name map: {{ vlan_id_name_map }}"
@@ -555,13 +656,14 @@
           Safety validation failed on {{ inventory_hostname }}.
           The playbook detected a possible VLAN validation issue before commit.
 
-    - name: Apply VLAN propagation to selected trunks
+    - name: Apply VLAN propagation to selected interfaces
       junipernetworks.junos.junos_config:
         lines: "{{ final_config_lines }}"
         comment: >-
-          Propagated VLAN IDs {{ vlan_list | join(',') }} on trunk interfaces via AWX.
+          Propagated VLAN IDs {{ vlan_list | join(',') }} via AWX.
           Role: {{ propagation_role | default('unknown') }}.
           Created VLANs: {{ missing_vlan_ids | join(',') if missing_vlan_ids | length > 0 else 'none' }}.
+          Selected interface mode: {{ selected_switch_interface_mode }}.
       register: config_result
 
     - name: Show result
@@ -572,4 +674,6 @@
           - "VLAN IDs requested: {{ vlan_list | join(', ') }}"
           - "VLAN names used: {{ requested_vlan_name_map }}"
           - "VLANs created: {{ missing_vlan_ids | join(', ') if missing_vlan_ids | length > 0 else 'None' }}"
-          - "Interfaces updated: {{ interface_list | join(', ') }}"
+          - "Propagation trunk interfaces updated: {{ propagation_interface_list | join(', ') }}"
+          - "Selected switch user interfaces updated: {{ selected_switch_interface_list | join(', ') if selected_switch_interface_list | length > 0 else 'None' }}"
+          - "Selected switch user interface mode: {{ selected_switch_interface_mode }}"
