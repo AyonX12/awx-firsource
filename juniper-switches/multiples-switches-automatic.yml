@@ -200,7 +200,7 @@
                   - host: dsw04
                     interfaces: "ge-0/0/1,xe-0/2/2"
                   - host: dsw03
-                    interfaces: "ge-0/0/5,ge-0/2/3"
+                    interfaces: "ge-0/0/5,xe-0/2/3"
                   - host: csw01
                     interfaces: "xe-1/2/1,xe-0/2/1"
               asw20:
