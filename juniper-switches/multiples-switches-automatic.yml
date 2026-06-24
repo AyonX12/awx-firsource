@@ -25,66 +25,49 @@
                 local_interfaces: "ge-0/0/46,ge-0/0/47"
                 upstream:
                   - host: csw01
-                    interfaces: "ge-0/0/2"
-                  - host: csw02
-                    interfaces: "ge-1/0/2"
+                    interfaces: "ge-0/0/1, ge-1/0/1"
 
               asw02:
                 local_interfaces: "ge-0/0/46,ge-0/0/47"
                 upstream:
                   - host: csw01
-                    interfaces: "ge-0/0/3"
-                  - host: csw02
-                    interfaces: "ge-1/0/3"
+                    interfaces: "ge-0/0/2, ge-1/0/2"
 
               asw03:
                 local_interfaces: "ge-0/0/46,ge-0/0/47"
                 upstream:
                   - host: csw01
-                    interfaces: "ge-0/0/4"
-                  - host: csw02
-                    interfaces: "ge-1/0/4"
-
+                    interfaces: "ge-0/0/3, ge-1/0/3"
+   
               asw04:
                 local_interfaces: "ge-0/0/46,ge-0/0/47"
                 upstream:
                   - host: csw01
-                    interfaces: "ge-0/0/5"
-                  - host: csw02
-                    interfaces: "ge-1/0/5"
+                    interfaces: "ge-0/0/4, ge-1/0/4"
 
               asw05:
                 local_interfaces: "ge-0/0/46,ge-0/0/47"
                 upstream:
                   - host: csw01
-                    interfaces: "ge-0/0/6"
-                  - host: csw02
-                    interfaces: "ge-1/0/6"
+                    interfaces: "ge-0/0/5, ge-1/0/5"
 
               asw06:
                 local_interfaces: "ge-0/0/46,ge-0/0/47"
                 upstream:
                   - host: csw01
-                    interfaces: "ge-0/0/7"
-                  - host: csw02
-                    interfaces: "ge-1/0/7"
+                    interfaces: "ge-0/0/6, ge-1/0/6"
 
               asw07:
                 local_interfaces: "ge-0/0/46,ge-0/0/47"
                 upstream:
                   - host: csw01
-                    interfaces: "ge-0/0/8"
-                  - host: csw02
-                    interfaces: "ge-1/0/8"
+                    interfaces: "ge-0/0/7, ge-1/0/7"
 
               asw08:
                 local_interfaces: "ge-0/0/46,ge-0/0/47"
                 upstream:
                   - host: csw01
-                    interfaces: "ge-0/0/9"
-                  - host: csw02
-                    interfaces: "ge-1/0/9"
-
+                    interfaces: "ge-0/0/8, ge-1/0/8"
 
               # =========================
               # ACCESS SWITCHES 09 - 17
@@ -95,73 +78,91 @@
                 local_interfaces: "ge-0/0/46,ge-0/0/47"
                 upstream:
                   - host: dsw01
-                    interfaces: "ge-0/0/0"
+                    interfaces: "ge-0/0/0,xe-0/2/0"
                   - host: dsw02
-                    interfaces: "ge-0/0/0"
+                    interfaces: "ge-0/0/0,xe-0/2/0"
+                  - host: csw01
+                    interfaces: "xe-0/2/0,xe-1/2/0"
+
 
               asw10:
                 local_interfaces: "ge-0/0/46,ge-0/0/47"
                 upstream:
                   - host: dsw01
-                    interfaces: "ge-0/0/1"
+                    interfaces: "ge-0/0/1,xe-0/2/0"
                   - host: dsw02
-                    interfaces: "ge-0/0/1"
+                    interfaces: "ge-0/0/1,xe-0/2/0"
+                  - host: csw01
+                    interfaces: "xe-0/2/0,xe-1/2/0"
 
               asw11:
                 local_interfaces: "ge-0/0/46,ge-0/0/47"
                 upstream:
                   - host: dsw01
-                    interfaces: "ge-0/0/2"
+                    interfaces: "ge-0/0/2,xe-0/2/0"
                   - host: dsw02
-                    interfaces: "ge-0/0/2"
+                    interfaces: "ge-0/0/2,xe-0/2/0"
+                  - host: csw01
+                    interfaces: "xe-0/2/0,xe-1/2/0"
 
               asw12:
                 local_interfaces: "ge-0/0/46,ge-0/0/47"
                 upstream:
                   - host: dsw01
-                    interfaces: "ge-0/0/3"
+                    interfaces: "ge-0/0/3,xe-0/2/0"
                   - host: dsw02
-                    interfaces: "ge-0/0/3"
+                    interfaces: "ge-0/0/3,xe-0/2/0"
+                  - host: csw01
+                    interfaces: "xe-0/2/0,xe-1/2/0"
 
               asw13:
                 local_interfaces: "ge-0/0/46,ge-0/0/47"
                 upstream:
                   - host: dsw01
-                    interfaces: "ge-0/0/4"
+                    interfaces: "ge-0/0/4,xe-0/2/0"
                   - host: dsw02
-                    interfaces: "ge-0/0/4"
+                    interfaces: "ge-0/0/4,xe-0/2/0"
+                  - host: csw01
+                    interfaces: "xe-0/2/0,xe-1/2/0"
 
               asw14:
                 local_interfaces: "ge-0/0/46,ge-0/0/47"
                 upstream:
                   - host: dsw01
-                    interfaces: "ge-0/0/5"
+                    interfaces: "ge-0/0/5,xe-0/2/0"
                   - host: dsw02
-                    interfaces: "ge-0/0/5"
+                    interfaces: "ge-0/0/5,xe-0/2/0"
+                  - host: csw01
+                    interfaces: "xe-0/2/0,xe-1/2/0"
 
               asw15:
                 local_interfaces: "ge-0/0/46,ge-0/0/47"
                 upstream:
                   - host: dsw01
-                    interfaces: "ge-0/0/6"
+                    interfaces: "ge-0/0/6,xe-0/2/0"
                   - host: dsw02
-                    interfaces: "ge-0/0/6"
-
+                    interfaces: "ge-0/0/6,xe-0/2/0"
+                  - host: csw01
+                    interfaces: "xe-0/2/0,xe-1/2/0"
               asw16:
                 local_interfaces: "ge-0/0/46,ge-0/0/47"
                 upstream:
                   - host: dsw01
-                    interfaces: "ge-0/0/7"
+                    interfaces: "ge-0/0/7,xe-0/2/0"
                   - host: dsw02
-                    interfaces: "ge-0/0/7"
+                    interfaces: "ge-0/0/7,xe-0/2/0"
+                  - host: csw01
+                    interfaces: "xe-0/2/0,xe-1/2/0"
 
               asw17:
                 local_interfaces: "ge-0/0/46,ge-0/0/47"
                 upstream:
                   - host: dsw01
-                    interfaces: "ge-0/0/8"
+                    interfaces: "ge-0/0/8,xe-0/2/0"
                   - host: dsw02
-                    interfaces: "ge-0/0/8"
+                    interfaces: "ge-0/0/8,xe-0/2/0"
+                  - host: csw01
+                    interfaces: "xe-0/2/0,xe-1/2/0"
 
 
               # =========================
@@ -173,10 +174,11 @@
                 local_interfaces: "ge-0/2/0,ge-0/2/1"
                 upstream:
                   - host: dsw01
-                    interfaces: "ge-0/0/9"
+                    interfaces: "ge-0/0/9,xe-0/2/0"
                   - host: dsw02
-                    interfaces: "ge-0/0/9"
-
+                    interfaces: "ge-0/0/9,xe-0/2/0"
+                  - host: csw01
+                    interfaces: "xe-0/2/0,xe-1/2/0"
 
               # =========================
               # ACCESS SWITCHES 19 - 21
@@ -193,16 +195,23 @@
                       - host: csw01
                         interfaces: "xe-1/2/1,xe-0/2/1"
               asw21:
-                local_interfaces: "ge-0/2/1"
+                local_interfaces: "ge-0/2/0"
                 upstream:
                   - host: dsw04
-                    interfaces: "ge-0/0/1"
-
+                    interfaces: "ge-0/0/1,xe-0/2/2"
+                  - host: dsw03
+                    interfaces: "ge-0/0/5,ge-0/2/3"
+                  - host: csw01
+                    interfaces: "xe-1/2/1,xe-0/2/1"
               asw20:
-                local_interfaces: "ge-0/2/1"
+                local_interfaces: "ge-0/2/0,ge-0/2/1"
                 upstream:
                   - host: dsw04
-                    interfaces: "ge-0/0/2"
+                    interfaces: "ge-0/0/2,xe-0/2/2"
+                  - host: dsw03
+                    interfaces: "ge-0/0/6,xe-0/2/3"
+                  - host: csw01
+                    interfaces: "xe-0/2/0,xe-1/2/0"
 
                 # Ejemplo adicional:
                 # asw19:
