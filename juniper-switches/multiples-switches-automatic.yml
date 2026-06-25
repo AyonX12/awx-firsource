@@ -180,6 +180,15 @@
           - host: csw01
             interfaces: "xe-0/2/0,xe-1/2/0"
 
+    asw18:
+        local_interfaces: "ge-0/2/0,ge-0/2/1"
+        upstream:
+          - host: dsw02
+            interfaces: "ge-0/0/10,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-1/2/0"
+
+
       # =========================
       # ACCESS SWITCHES 19 - 21
       # Upstream: DSW03 / DSW04 / CSW01
