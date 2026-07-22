@@ -222,7 +222,7 @@
           - host: dsw03
             interfaces: "ge-0/0/6,xe-0/2/3"
           - host: csw01
-            interfaces: "xe-0/2/0,xe-1/2/0"
+            interfaces: "xe-0/2/1,xe-1/2/1"
 
   pre_tasks:
     - name: Normalize requested interface mode
