@@ -251,7 +251,7 @@
       ansible.builtin.set_fact:
         access_topology: "{{ upstream_path_map.get(inventory_hostname, {}) }}"
 
-    - name: Validate selected access switch topology
+    - name: Validate selected access switch topology for trunk mode
       ansible.builtin.assert:
         that:
           - access_topology.local_interfaces is defined
@@ -260,9 +260,11 @@
           - access_topology.upstream | length > 0
         fail_msg: >
           The selected access switch {{ inventory_hostname }}
-          does not have a valid upstream path configured.
+          does not have a valid upstream path configured for trunk propagation.
+      when:
+        - requested_interface_mode == "trunk"
 
-    - name: Validate upstream entries
+    - name: Validate upstream entries for trunk mode
       ansible.builtin.assert:
         that:
           - item.host is defined
@@ -270,7 +272,20 @@
           - item.interfaces is defined
           - item.interfaces | string | trim | length > 0
         fail_msg: "Invalid upstream entry: {{ item }}"
-      loop: "{{ access_topology.upstream }}"
+      loop: "{{ access_topology.upstream | default([]) }}"
+      when:
+        - requested_interface_mode == "trunk"
+
+    - name: Validate selected interfaces for access mode
+      ansible.builtin.assert:
+        that:
+          - interfaces_to_update is defined
+          - interfaces_to_update | string | trim | length > 0
+        fail_msg: >
+          Access mode requires interfaces_to_update.
+          Example: interfaces_to_update="ge-0/0/1,ge-0/0/2"
+      when:
+        - requested_interface_mode == "access"
 
   tasks:
 
@@ -279,7 +294,7 @@
         name: "{{ inventory_hostname }}"
         groups: dynamic_vlan_propagation_targets
         propagation_role: "selected_access_switch"
-        propagation_interfaces: "{{ access_topology.local_interfaces }}"
+        propagation_interfaces: "{{ access_topology.local_interfaces | default('') }}"
         selected_switch_interfaces: "{{ interfaces_to_update | default('') }}"
         selected_switch_interface_mode: "{{ requested_interface_mode }}"
 
@@ -291,16 +306,18 @@
         propagation_interfaces: "{{ item.interfaces }}"
         selected_switch_interfaces: ""
         selected_switch_interface_mode: "trunk"
-      loop: "{{ access_topology.upstream }}"
+      loop: "{{ access_topology.upstream | default([]) }}"
+      when:
+        - requested_interface_mode == "trunk"
 
     - name: Show propagation path
       ansible.builtin.debug:
         msg:
           - "Selected access switch: {{ inventory_hostname }}"
-          - "Access uplinks: {{ access_topology.local_interfaces }}"
+          - "Access uplinks: {{ access_topology.local_interfaces | default('Not used in access mode') }}"
           - "Selected user interfaces: {{ interfaces_to_update | default('None') }}"
           - "Selected interface mode: {{ requested_interface_mode }}"
-          - "Upstream switches: {{ access_topology.upstream }}"
+          - "Upstream switches: {{ access_topology.upstream | default([]) if requested_interface_mode == 'trunk' else 'Not modified in access mode' }}"
 
 
 - name: Propagate requested VLANs through network
@@ -324,8 +341,12 @@
         that:
           - vlans_to_add is defined
           - propagation_interfaces is defined
-          - propagation_interfaces | string | trim | length > 0
           - selected_switch_interface_mode in ['trunk', 'access']
+          - >
+            (selected_switch_interface_mode == 'access'
+             and propagation_role == 'selected_access_switch')
+            or
+            (propagation_interfaces | string | trim | length > 0)
         fail_msg: >
           Required propagation variables are missing.
 
@@ -565,6 +586,8 @@
               ]
           }}
       loop: "{{ propagation_interface_list }}"
+      when:
+        - selected_switch_interface_mode == "trunk"
 
     - name: Build propagation VLAN member lines
       ansible.builtin.set_fact:
@@ -581,6 +604,8 @@
               ]
           }}
       loop: "{{ propagation_interface_list | product(vlan_list) | list }}"
+      when:
+        - selected_switch_interface_mode == "trunk"
 
     - name: Build selected trunk mode lines
       ansible.builtin.set_fact:
@@ -629,8 +654,7 @@
                 ~ item
                 ~ ' unit '
                 ~ interface_unit
-                ~ ' family ethernet-switching vlan members '
-                ~ requested_vlan_name_map[vlan_list[0]],
+                ~ ' family ethernet-switching vlan members',
 
                 'set interfaces '
                 ~ item
@@ -673,12 +697,16 @@
           {{
             (
               vlan_config_lines
-              + propagation_trunk_mode_lines
-              + propagation_vlan_member_lines
-              + selected_trunk_mode_lines
-              + selected_trunk_vlan_member_lines
-              + selected_access_lines
-              + rstp_access_lines
+              + (
+                  propagation_trunk_mode_lines
+                  + propagation_vlan_member_lines
+                  + selected_trunk_mode_lines
+                  + selected_trunk_vlan_member_lines
+                if selected_switch_interface_mode == 'trunk'
+                else
+                  selected_access_lines
+                  + rstp_access_lines
+                )
             )
             | unique
             | list
