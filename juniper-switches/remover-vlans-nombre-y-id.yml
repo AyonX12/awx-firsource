@@ -1,0 +1,615 @@
+---
+- name: Build VLAN propagation target list from selected access switch
+  hosts: "{{ target_hosts | default('all') }}"
+  gather_facts: false
+
+  vars:
+    interface_mode: "trunk"
+
+    upstream_path_map:
+
+      # =========================
+      # ACCESS SWITCHES 01 - 08
+      # UPSTREAM: CSW01
+      # =========================
+
+      asw01:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: csw01
+            interfaces: "ge-0/0/1,ge-1/0/1"
+
+      asw02:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: csw01
+            interfaces: "ge-0/0/2,ge-1/0/2"
+
+      asw03:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: csw01
+            interfaces: "ge-0/0/3,ge-1/0/3"
+
+      asw04:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: csw01
+            interfaces: "ge-0/0/4,ge-1/0/4"
+
+      asw05:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: csw01
+            interfaces: "ge-0/0/5,ge-1/0/5"
+
+      asw06:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: csw01
+            interfaces: "ge-0/0/6,ge-1/0/6"
+
+      asw07:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: csw01
+            interfaces: "ge-0/0/7,ge-1/0/7"
+
+      asw08:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: csw01
+            interfaces: "ge-0/0/8,ge-1/0/8"
+
+      # =========================
+      # ACCESS SWITCHES 09 - 17
+      # UPSTREAM: DSW01 / DSW02 / CSW01
+      # =========================
+
+      asw09:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: dsw01
+            interfaces: "ge-0/0/0,xe-0/2/0"
+          - host: dsw02
+            interfaces: "ge-0/0/0,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
+
+      asw10:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: dsw01
+            interfaces: "ge-0/0/1,xe-0/2/0"
+          - host: dsw02
+            interfaces: "ge-0/0/1,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
+
+      asw11:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: dsw01
+            interfaces: "ge-0/0/2,xe-0/2/0"
+          - host: dsw02
+            interfaces: "ge-0/0/2,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
+
+      asw12:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: dsw01
+            interfaces: "ge-0/0/3,xe-0/2/0"
+          - host: dsw02
+            interfaces: "ge-0/0/3,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
+
+      asw13:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: dsw01
+            interfaces: "ge-0/0/4,xe-0/2/0"
+          - host: dsw02
+            interfaces: "ge-0/0/4,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
+
+      asw14:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: dsw01
+            interfaces: "ge-0/0/5,xe-0/2/0"
+          - host: dsw02
+            interfaces: "ge-0/0/5,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
+
+      asw15:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: dsw01
+            interfaces: "ge-0/0/6,xe-0/2/0"
+          - host: dsw02
+            interfaces: "ge-0/0/6,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
+
+      asw16:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: dsw01
+            interfaces: "ge-0/0/7,xe-0/2/0"
+          - host: dsw02
+            interfaces: "ge-0/0/7,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
+
+      asw17:
+        local_interfaces: "ge-0/0/46,ge-0/0/47"
+        upstream:
+          - host: dsw01
+            interfaces: "ge-0/0/8,xe-0/2/0"
+          - host: dsw02
+            interfaces: "ge-0/0/8,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
+
+      # =========================
+      # ACCESS SWITCHES 18 - 22
+      # =========================
+
+      asw18:
+        local_interfaces: "ge-0/2/0,ge-0/2/1"
+        upstream:
+          - host: dsw02
+            interfaces: "ge-0/0/10,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-1/2/0"
+
+      asw22:
+        local_interfaces: "ge-0/2/0,ge-0/2/1"
+        upstream:
+          - host: dsw01
+            interfaces: "ge-0/0/9,xe-0/2/0"
+          - host: dsw02
+            interfaces: "ge-0/0/9,xe-0/2/0"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
+
+      # =========================
+      # ACCESS SWITCHES 19 - 21
+      # =========================
+
+      asw19:
+        local_interfaces: "ge-0/2/0,ge-0/2/1"
+        upstream:
+          - host: dsw03
+            interfaces: "ge-0/0/4,xe-0/2/3"
+          - host: dsw04
+            interfaces: "ge-0/0/0,xe-0/2/2"
+          - host: csw01
+            interfaces: "xe-1/2/1,xe-0/2/1"
+
+      asw20:
+        local_interfaces: "ge-0/2/0,ge-0/2/1"
+        upstream:
+          - host: dsw04
+            interfaces: "ge-0/0/2,xe-0/2/2"
+          - host: dsw03
+            interfaces: "ge-0/0/6,xe-0/2/3"
+          - host: csw01
+            interfaces: "xe-0/2/0,xe-1/2/0"
+
+      asw21:
+        local_interfaces: "ge-0/2/0"
+        upstream:
+          - host: dsw04
+            interfaces: "ge-0/0/1,xe-0/2/2"
+          - host: dsw03
+            interfaces: "ge-0/0/5,xe-0/2/3"
+          - host: csw01
+            interfaces: "xe-1/2/1,xe-0/2/1"
+
+
+  pre_tasks:
+
+    - name: Validate only one access switch was selected
+      ansible.builtin.assert:
+        that:
+          - ansible_play_hosts_all | length == 1
+        fail_msg: >
+          This playbook requires exactly one access switch.
+          Example: target_hosts="asw19"
+
+    - name: Normalize requested interface mode
+      ansible.builtin.set_fact:
+        requested_interface_mode: "{{ interface_mode | lower | trim }}"
+
+    - name: Validate requested interface mode
+      ansible.builtin.assert:
+        that:
+          - requested_interface_mode in ['trunk', 'access']
+        fail_msg: "interface_mode must be trunk or access"
+
+    - name: Validate VLAN removal input
+      ansible.builtin.assert:
+        that:
+          - vlans_to_remove is defined
+          - vlans_to_remove | string | trim | length > 0
+        fail_msg: >
+          Missing vlans_to_remove.
+          Examples: vlans_to_remove="126" or vlans_to_remove="126:Collections_Upstart"
+
+    - name: Get topology for selected access switch
+      ansible.builtin.set_fact:
+        access_topology: "{{ upstream_path_map.get(inventory_hostname, {}) }}"
+
+    - name: Validate selected access switch topology for trunk mode
+      ansible.builtin.assert:
+        that:
+          - access_topology.local_interfaces is defined
+          - access_topology.local_interfaces | string | trim | length > 0
+          - access_topology.upstream is defined
+          - access_topology.upstream | length > 0
+        fail_msg: >
+          The selected access switch {{ inventory_hostname }} does not have
+          a valid upstream path configured for trunk removal.
+      when: requested_interface_mode == 'trunk'
+
+    - name: Validate selected interfaces for access mode
+      ansible.builtin.assert:
+        that:
+          - interfaces_to_update is defined
+          - interfaces_to_update | string | trim | length > 0
+        fail_msg: >
+          Access mode requires interfaces_to_update.
+          Example: interfaces_to_update="ge-0/0/1,ge-0/0/2"
+      when: requested_interface_mode == 'access'
+
+  tasks:
+
+    - name: Add selected access switch to removal group
+      ansible.builtin.add_host:
+        name: "{{ inventory_hostname }}"
+        groups: dynamic_vlan_removal_targets
+        propagation_role: "selected_access_switch"
+        propagation_interfaces: "{{ access_topology.local_interfaces | default('') }}"
+        selected_switch_interfaces: "{{ interfaces_to_update | default('') }}"
+        selected_switch_interface_mode: "{{ requested_interface_mode }}"
+
+    - name: Add upstream switches to removal group
+      ansible.builtin.add_host:
+        name: "{{ item.host }}"
+        groups: dynamic_vlan_removal_targets
+        propagation_role: "upstream_switch"
+        propagation_interfaces: "{{ item.interfaces }}"
+        selected_switch_interfaces: ""
+        selected_switch_interface_mode: "trunk"
+      loop: "{{ access_topology.upstream | default([]) }}"
+      when: requested_interface_mode == 'trunk'
+
+    - name: Show VLAN removal path
+      ansible.builtin.debug:
+        msg:
+          - "Selected access switch: {{ inventory_hostname }}"
+          - "Access uplinks: {{ access_topology.local_interfaces | default('Not used in access mode') }}"
+          - "Selected user interfaces: {{ interfaces_to_update | default('None') }}"
+          - "Selected interface mode: {{ requested_interface_mode }}"
+          - "Upstream switches: {{ access_topology.upstream | default([]) if requested_interface_mode == 'trunk' else 'Not modified in access mode' }}"
+
+
+- name: Remove requested VLANs through network
+  hosts: dynamic_vlan_removal_targets
+  gather_facts: false
+  strategy: free
+
+  vars:
+    interface_unit: 0
+    remove_vlan_definition: true
+    ansible_command_timeout: 300
+    ansible_connect_timeout: 15
+
+  pre_tasks:
+
+    - name: Validate required removal variables
+      ansible.builtin.assert:
+        that:
+          - vlans_to_remove is defined
+          - propagation_interfaces is defined
+          - selected_switch_interface_mode in ['trunk', 'access']
+          - >
+            (selected_switch_interface_mode == 'access' and propagation_role == 'selected_access_switch')
+            or
+            (propagation_interfaces | string | trim | length > 0)
+        fail_msg: "Required VLAN removal variables are missing"
+
+    - name: Parse VLAN removal input
+      ansible.builtin.set_fact:
+        vlan_raw_entry_list: >-
+          {{
+            vlans_to_remove.split(',')
+            | map('trim')
+            | reject('equalto', '')
+            | list
+          }}
+
+    - name: Validate VLAN removal input format
+      ansible.builtin.assert:
+        that:
+          - item is match('^[0-9]{1,4}(:[A-Za-z0-9_.-]+)?$')
+        fail_msg: >
+          Invalid VLAN input: {{ item }}.
+          Valid examples: 126 or 126:Collections_Upstart
+      loop: "{{ vlan_raw_entry_list }}"
+
+    - name: Initialize requested VLAN variables
+      ansible.builtin.set_fact:
+        vlan_list: []
+        requested_vlan_custom_name_map: {}
+
+    - name: Build requested VLAN ID list
+      ansible.builtin.set_fact:
+        vlan_list: "{{ vlan_list + [item.split(':')[0] | trim] }}"
+      loop: "{{ vlan_raw_entry_list }}"
+
+    - name: Build optional requested VLAN name map
+      ansible.builtin.set_fact:
+        requested_vlan_custom_name_map: >-
+          {{
+            requested_vlan_custom_name_map
+            | combine({
+                (item.split(':')[0] | trim):
+                (item.split(':')[1] | trim)
+              })
+          }}
+      loop: "{{ vlan_raw_entry_list }}"
+      when: "':' in item"
+
+    - name: Validate duplicate VLAN IDs
+      ansible.builtin.assert:
+        that:
+          - vlan_list | unique | length == vlan_list | length
+        fail_msg: "Duplicate VLAN IDs found: {{ vlan_list }}"
+
+    - name: Validate VLAN IDs
+      ansible.builtin.assert:
+        that:
+          - item | int >= 1
+          - item | int <= 4094
+      loop: "{{ vlan_list }}"
+
+    - name: Convert propagation interfaces to list
+      ansible.builtin.set_fact:
+        propagation_interface_list: >-
+          {{
+            propagation_interfaces.split(',')
+            | map('trim')
+            | reject('equalto', '')
+            | list
+          }}
+
+    - name: Convert selected user interfaces to list
+      ansible.builtin.set_fact:
+        selected_switch_interface_list: >-
+          {{
+            selected_switch_interfaces.split(',')
+            | map('trim')
+            | reject('equalto', '')
+            | list
+            if selected_switch_interfaces | default('') | trim | length > 0
+            else []
+          }}
+
+    - name: Validate propagation interface format
+      ansible.builtin.assert:
+        that:
+          - item is match('^(ge|xe|et|mge)-[0-9]+/[0-9]+/[0-9]+$|^ae[0-9]+$')
+        fail_msg: "Invalid interface: {{ item }}"
+      loop: "{{ propagation_interface_list }}"
+
+    - name: Validate selected user interface format
+      ansible.builtin.assert:
+        that:
+          - item is match('^(ge|xe|et|mge)-[0-9]+/[0-9]+/[0-9]+$|^ae[0-9]+$')
+        fail_msg: "Invalid interface: {{ item }}"
+      loop: "{{ selected_switch_interface_list }}"
+      when: selected_switch_interface_list | length > 0
+
+  tasks:
+
+    - name: Initialize removal variables
+      ansible.builtin.set_fact:
+        vlan_id_name_map: {}
+        vlan_name_id_map: {}
+        existing_requested_vlan_ids: []
+        requested_vlan_name_map: {}
+        vlan_name_mismatch_map: {}
+        propagation_vlan_remove_lines: []
+        selected_trunk_vlan_remove_lines: []
+        selected_access_vlan_remove_lines: []
+        vlan_delete_lines: []
+
+    - name: Gather existing VLANs from Junos
+      junipernetworks.junos.junos_vlans:
+        state: gathered
+      register: gathered_vlans_result
+
+    - name: Build existing VLAN maps
+      ansible.builtin.set_fact:
+        vlan_id_name_map: >-
+          {{ vlan_id_name_map | combine({(item.vlan_id | string): item.name}) }}
+        vlan_name_id_map: >-
+          {{ vlan_name_id_map | combine({item.name: (item.vlan_id | string)}) }}
+      loop: "{{ gathered_vlans_result.gathered | default([]) }}"
+      when:
+        - item.vlan_id is defined
+        - item.name is defined
+
+    - name: Detect requested VLAN IDs that exist on this switch
+      ansible.builtin.set_fact:
+        existing_requested_vlan_ids: >-
+          {{ vlan_list | intersect(vlan_id_name_map.keys() | list) }}
+
+    - name: Build actual VLAN name map from switch configuration
+      ansible.builtin.set_fact:
+        requested_vlan_name_map: >-
+          {{ requested_vlan_name_map | combine({item: vlan_id_name_map[item]}) }}
+      loop: "{{ existing_requested_vlan_ids }}"
+
+    - name: Detect supplied VLAN name mismatch
+      ansible.builtin.set_fact:
+        vlan_name_mismatch_map: >-
+          {{
+            vlan_name_mismatch_map
+            | combine({
+                item: {
+                  'supplied_name': requested_vlan_custom_name_map[item],
+                  'actual_name': vlan_id_name_map[item]
+                }
+              })
+          }}
+      loop: "{{ existing_requested_vlan_ids }}"
+      when:
+        - item in requested_vlan_custom_name_map
+        - requested_vlan_custom_name_map[item] != vlan_id_name_map[item]
+
+    - name: Stop if supplied VLAN name does not match switch
+      ansible.builtin.assert:
+        that:
+          - vlan_name_mismatch_map | length == 0
+        fail_msg: >
+          VLAN name mismatch on {{ inventory_hostname }}: {{ vlan_name_mismatch_map }}
+
+    - name: Build propagation trunk VLAN removal lines
+      ansible.builtin.set_fact:
+        propagation_vlan_remove_lines: >-
+          {{
+            propagation_vlan_remove_lines
+            + [
+                'delete interfaces '
+                ~ item.0
+                ~ ' unit '
+                ~ (interface_unit | string)
+                ~ ' family ethernet-switching vlan members '
+                ~ requested_vlan_name_map[item.1],
+
+                'delete interfaces '
+                ~ item.0
+                ~ ' unit '
+                ~ (interface_unit | string)
+                ~ ' family ethernet-switching vlan members '
+                ~ item.1
+              ]
+          }}
+      loop: "{{ propagation_interface_list | product(existing_requested_vlan_ids) | list }}"
+      when: selected_switch_interface_mode == 'trunk'
+
+    - name: Build selected user trunk VLAN removal lines
+      ansible.builtin.set_fact:
+        selected_trunk_vlan_remove_lines: >-
+          {{
+            selected_trunk_vlan_remove_lines
+            + [
+                'delete interfaces '
+                ~ item.0
+                ~ ' unit '
+                ~ (interface_unit | string)
+                ~ ' family ethernet-switching vlan members '
+                ~ requested_vlan_name_map[item.1],
+
+                'delete interfaces '
+                ~ item.0
+                ~ ' unit '
+                ~ (interface_unit | string)
+                ~ ' family ethernet-switching vlan members '
+                ~ item.1
+              ]
+          }}
+      loop: "{{ selected_switch_interface_list | product(existing_requested_vlan_ids) | list }}"
+      when:
+        - propagation_role == 'selected_access_switch'
+        - selected_switch_interface_mode == 'trunk'
+
+    - name: Build selected access VLAN removal lines
+      ansible.builtin.set_fact:
+        selected_access_vlan_remove_lines: >-
+          {{
+            selected_access_vlan_remove_lines
+            + [
+                'delete interfaces '
+                ~ item.0
+                ~ ' unit '
+                ~ (interface_unit | string)
+                ~ ' family ethernet-switching vlan members '
+                ~ requested_vlan_name_map[item.1],
+
+                'delete interfaces '
+                ~ item.0
+                ~ ' unit '
+                ~ (interface_unit | string)
+                ~ ' family ethernet-switching vlan members '
+                ~ item.1
+              ]
+          }}
+      loop: "{{ selected_switch_interface_list | product(existing_requested_vlan_ids) | list }}"
+      when:
+        - propagation_role == 'selected_access_switch'
+        - selected_switch_interface_mode == 'access'
+
+    - name: Build VLAN definition deletion lines
+      ansible.builtin.set_fact:
+        vlan_delete_lines: >-
+          {{
+            vlan_delete_lines
+            + ['delete vlans ' ~ requested_vlan_name_map[item]]
+          }}
+      loop: "{{ existing_requested_vlan_ids }}"
+      when: remove_vlan_definition | bool
+
+    - name: Build final removal configuration
+      ansible.builtin.set_fact:
+        final_config_lines: >-
+          {{
+            (
+              propagation_vlan_remove_lines
+              + selected_trunk_vlan_remove_lines
+              + selected_access_vlan_remove_lines
+              + vlan_delete_lines
+            )
+            | unique
+            | list
+          }}
+
+    - name: Show VLAN removal configuration
+      ansible.builtin.debug:
+        msg:
+          - "Switch: {{ inventory_hostname }}"
+          - "Role: {{ propagation_role }}"
+          - "Requested VLAN IDs: {{ vlan_list }}"
+          - "Existing requested VLAN IDs: {{ existing_requested_vlan_ids }}"
+          - "Actual VLAN names: {{ requested_vlan_name_map }}"
+          - "Propagation interfaces: {{ propagation_interface_list }}"
+          - "Selected user interfaces: {{ selected_switch_interface_list }}"
+          - "Interface mode: {{ selected_switch_interface_mode }}"
+          - "Delete VLAN definition: {{ remove_vlan_definition | bool }}"
+          - "Configuration lines: {{ final_config_lines }}"
+
+    - name: Apply VLAN removal configuration
+      junipernetworks.junos.junos_config:
+        lines: "{{ final_config_lines }}"
+        comment: >-
+          Removed VLAN IDs {{ existing_requested_vlan_ids | join(',') }} via AWX.
+          Role: {{ propagation_role }}.
+      register: config_result
+      when: final_config_lines | length > 0
+
+    - name: Show removal result
+      ansible.builtin.debug:
+        msg:
+          - "Switch: {{ inventory_hostname }}"
+          - "VLANs requested: {{ vlan_list | join(', ') }}"
+          - "VLANs found: {{ existing_requested_vlan_ids | join(', ') if existing_requested_vlan_ids | length > 0 else 'None' }}"
+          - "Changes applied: {{ final_config_lines | length }} lines"
+          - "No change was required if VLANs found is None"
