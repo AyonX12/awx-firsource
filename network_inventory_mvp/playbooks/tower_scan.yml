@@ -1,0 +1,203 @@
+---
+- name: Validate AWX input and prepare scan workspace
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  any_errors_fatal: true
+
+  vars_files:
+    - ../vars/uplinks.yml
+
+  vars:
+    scan_id: "{{ tower_job_id | default(awx_job_id | default('manual')) }}"
+    scan_root: "/tmp/network_inventory_{{ scan_id }}"
+    effective_exclude_uplinks: "{{ exclude_uplinks | default(exclude_uplinks_default) | bool }}"
+
+  tasks:
+    - name: Require target_hosts so the playbook never scans all devices by accident
+      ansible.builtin.assert:
+        that:
+          - target_hosts is defined
+          - target_hosts | string | trim | length > 0
+        fail_msg: >-
+          target_hosts is required. Examples:
+          target_hosts="asw20:asw21" or target_hosts="reprise_candidate_switches".
+
+    - name: Require either a targeted Everest ID or an explicit full inventory scan
+      ansible.builtin.assert:
+        that:
+          - >-
+            (everest_id is defined and everest_id | string | trim | length > 0)
+            or
+            (full_inventory_scan | default(false) | bool)
+        fail_msg: >-
+          Provide everest_id for a targeted search, or set full_inventory_scan=true
+          when target_hosts contains the complete switch scope to be inventoried.
+
+    - name: Prevent contradictory scan modes
+      ansible.builtin.assert:
+        that:
+          - not (
+              (everest_id is defined and everest_id | string | trim | length > 0)
+              and
+              (full_inventory_scan | default(false) | bool)
+            )
+        fail_msg: >-
+          Use either everest_id for a targeted search OR full_inventory_scan=true,
+          not both in the same job.
+
+    - name: Create temporary directories for this AWX job
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ scan_root }}/raw"
+        - "{{ scan_root }}/output"
+      changed_when: false
+
+    - name: Build uplink exclusion list from topology variables
+      ansible.builtin.copy:
+        dest: "{{ scan_root }}/uplinks.csv"
+        mode: "0644"
+        content: |
+          Switch,Interface
+          {% if effective_exclude_uplinks %}
+          {% for switch_name, interfaces in uplink_interfaces_map.items() %}
+          {% for interface in interfaces %}
+          {{ switch_name }},{{ interface }}
+          {% endfor %}
+          {% endfor %}
+          {% endif %}
+      changed_when: false
+
+    - name: Show scan safety settings
+      ansible.builtin.debug:
+        msg:
+          - "target_hosts={{ target_hosts }}"
+          - "everest_id={{ everest_id | default('ALL ASSIGNED USERS') }}"
+          - "full_inventory_scan={{ full_inventory_scan | default(false) | bool }}"
+          - "exclude_uplinks={{ effective_exclude_uplinks }}"
+
+- name: Collect Junos MAC and VLAN tables from selected switches
+  hosts: "{{ target_hosts | default('__NO_TARGET_SELECTED__') }}"
+  gather_facts: false
+  any_errors_fatal: true
+
+  vars:
+    # Matches the Junos collection already used in the existing AWX playbooks.
+    ansible_connection: ansible.netcommon.netconf
+    ansible_network_os: junipernetworks.junos.junos
+    ansible_port: 830
+    ansible_command_timeout: 120
+    ansible_connect_timeout: 15
+    scan_id: "{{ tower_job_id | default(awx_job_id | default('manual')) }}"
+    scan_root: "/tmp/network_inventory_{{ scan_id }}"
+
+  tasks:
+    - name: Read ethernet switching table and VLAN table (read only)
+      junipernetworks.junos.junos_command:
+        commands:
+          - show ethernet-switching table
+          - show vlans
+        display: text
+      register: network_tables
+      changed_when: false
+
+    - name: Validate MAC table response
+      ansible.builtin.assert:
+        that:
+          - network_tables is defined
+          - network_tables.stdout is defined
+          - network_tables.stdout | length >= 1
+          - network_tables.stdout[0] | string | trim | length > 0
+        fail_msg: >-
+          No ethernet-switching-table output was returned by {{ inventory_hostname }}.
+          The job is stopped to avoid false NOT_FOUND results.
+
+    - name: Store raw result for this switch and AWX job
+      ansible.builtin.copy:
+        content: "{{ network_tables | to_nice_json }}"
+        dest: "{{ scan_root }}/raw/{{ inventory_hostname }}.json"
+        mode: "0644"
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      changed_when: false
+
+- name: Compare live switch state with fixed-PC baseline
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  any_errors_fatal: true
+
+  vars:
+    scan_id: "{{ tower_job_id | default(awx_job_id | default('manual')) }}"
+    scan_root: "/tmp/network_inventory_{{ scan_id }}"
+    project_root: "{{ playbook_dir }}/.."
+
+  tasks:
+    - name: Build comparator command
+      ansible.builtin.set_fact:
+        comparator_argv: >-
+          {{
+            [
+              'python3',
+              project_root ~ '/scripts/compare_inventory.py',
+              '--baseline', project_root ~ '/baseline/inventory.csv',
+              '--raw-dir', scan_root ~ '/raw',
+              '--uplinks', scan_root ~ '/uplinks.csv',
+              '--output', scan_root ~ '/output/current_inventory.csv',
+              '--duplicates-output', scan_root ~ '/output/source_duplicates.csv',
+              '--events-output', scan_root ~ '/output/events.csv',
+              '--summary-json', scan_root ~ '/output/summary.json',
+              '--target-hosts', target_hosts | string,
+              '--scan-scope',
+                ('full' if (full_inventory_scan | default(false) | bool) else 'targeted'),
+              '--print-events'
+            ]
+            +
+            (
+              ['--everest-id', everest_id | string | trim]
+              if (everest_id is defined and everest_id | string | trim | length > 0)
+              else []
+            )
+          }}
+
+    - name: Compare current MAC locations with baseline inventory
+      ansible.builtin.command:
+        argv: "{{ comparator_argv }}"
+      register: comparison
+      changed_when: false
+
+    - name: Show inventory summary and detected movements in AWX job output
+      ansible.builtin.debug:
+        msg: "{{ comparison.stdout_lines }}"
+
+    - name: Read summary generated by comparator
+      ansible.builtin.slurp:
+        src: "{{ scan_root }}/output/summary.json"
+      register: summary_file
+      changed_when: false
+
+    - name: Parse summary
+      ansible.builtin.set_fact:
+        network_inventory_summary: "{{ summary_file.content | b64decode | from_json }}"
+
+    - name: Publish summary as AWX job artifact
+      ansible.builtin.set_stats:
+        data:
+          network_inventory_summary: "{{ network_inventory_summary }}"
+        per_host: false
+
+    - name: Read movement report
+      ansible.builtin.slurp:
+        src: "{{ scan_root }}/output/events.csv"
+      register: events_file
+      changed_when: false
+
+    - name: Publish movement CSV as AWX job artifact
+      ansible.builtin.set_stats:
+        data:
+          network_inventory_events_csv: "{{ events_file.content | b64decode }}"
+        per_host: false
