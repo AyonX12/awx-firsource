@@ -1,3 +1,0 @@
-# The current AWX Execution Environment already runs junipernetworks.junos in
-# the user's environment. Keep this file for custom EE builds if needed.
-ncclient>=0.6.15
