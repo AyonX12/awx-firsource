@@ -1,0 +1,4 @@
+---
+collections:
+  - name: junipernetworks.junos
+  - name: ansible.netcommon
