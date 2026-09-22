@@ -1,0 +1,2 @@
+# No additional Python package is required by compare_inventory.py.
+# Network dependencies are normally provided by the AWX Execution Environment.
