@@ -1,0 +1,4 @@
+---
+collections:
+  - name: juniper.device
+  - name: ansible.netcommon
