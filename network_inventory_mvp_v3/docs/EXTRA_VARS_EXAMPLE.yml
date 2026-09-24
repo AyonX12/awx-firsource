@@ -1,0 +1,6 @@
+---
+target_hosts: "asw20:asw21:asw15"
+client_name: "Reprise"
+exclude_uplinks: true
+update_seating_table: true
+publish_seating_to_git: true
