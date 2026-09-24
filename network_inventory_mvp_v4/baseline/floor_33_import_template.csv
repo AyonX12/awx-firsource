@@ -1,4 +1,4 @@
-Seat ID (do not edit),Desk Port,Agent Name,Hostname,Switch Port,Switch Serial,Movement Comment
+﻿Seat ID (do not edit),Desk Port,Agent Name,Hostname,Switch Port,Switch Serial,Movement Comment
 765,,,,,,
 766,,,,,,
 767,,,,,,
@@ -8,9 +8,9 @@ Seat ID (do not edit),Desk Port,Agent Name,Hostname,Switch Port,Switch Serial,Mo
 771,,,,,,
 773,,,,,,
 774,,,,,,
-775,PP0-02,ven987knc95,,ge0/0/4,ASW20,
+775,PP0-02,,,ge0/0/4,ASW20,MOVED OUT by AWX | User: ven987knc95 | Job: 826 | UTC: 2026-09-24T01:00:41+00:00 | To Seat: 779 | ASW15 ge0/0/18
 776,,,,,,
 777,,,,,,
 778,,,,,,
-779,PP0-03,,,ge0/0/18,ASW15,
+779,PP0-03,ven987knc95,,ge0/0/18,ASW15,MOVED IN by AWX | User: ven987knc95 | Job: 826 | UTC: 2026-09-24T01:00:41+00:00 | Client: Reprise | From Seat: 775 | From: NY4824470090(ASW20) ge-0/0/4
 780,,,,,,
