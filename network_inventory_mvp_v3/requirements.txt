@@ -1,3 +1,0 @@
-# The CSV and Git publication scripts use only the Python standard library.
-# Network dependencies are normally supplied by the AWX Execution Environment.
-ncclient>=0.6.13

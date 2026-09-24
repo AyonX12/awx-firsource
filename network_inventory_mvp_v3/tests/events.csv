@@ -1,2 +1,0 @@
-timestamp_utc,everest_id,client,role,mac,floor,baseline_desk,baseline_switch,baseline_interface,baseline_vlan,baseline_ipv4,status,current_switch,current_interface,current_vlan
-2026-09-23T22:00:00+00:00,ven987knc95,Reprise,Agent,2c:58:b9:f0:05:c5,33rd,PP0-02,NY4824470090(ASW20),ge-0/0/4,132,,SWITCH_MOVED,asw15,ge-0/0/18,132
