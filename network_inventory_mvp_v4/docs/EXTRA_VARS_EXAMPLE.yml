@@ -1,0 +1,7 @@
+---
+target_hosts: "asw20:asw21:asw15"
+client_name: "Reprise"
+exclude_uplinks: true
+floor_template: "floor_33_import_template.csv"
+update_seating_table: true
+publish_seating_to_git: true

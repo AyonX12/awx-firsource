@@ -1,0 +1,363 @@
+---
+- name: Validate AWX input and prepare scan workspace
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  any_errors_fatal: true
+
+  vars_files:
+    - ../vars/uplinks.yml
+
+  vars:
+    scan_id: "{{ tower_job_id | default(awx_job_id | default('manual')) }}"
+    scan_root: "/tmp/network_inventory_{{ scan_id }}"
+    effective_exclude_uplinks: "{{ exclude_uplinks | default(exclude_uplinks_default) | bool }}"
+
+  tasks:
+    - name: Require target_hosts so the playbook never scans all switches accidentally
+      ansible.builtin.assert:
+        that:
+          - target_hosts is defined
+          - target_hosts | string | trim | length > 0
+        fail_msg: >-
+          target_hosts is required. Examples:
+          target_hosts="asw20:asw21" or target_hosts="reprise_candidate_switches".
+
+    - name: Require either client filter or explicit full inventory scan
+      ansible.builtin.assert:
+        that:
+          - >-
+            (client_name is defined and client_name | string | trim | length > 0)
+            or
+            (full_inventory_scan | default(false) | bool)
+        fail_msg: >-
+          Provide client_name for a client-scoped search, or set
+          full_inventory_scan=true when target_hosts represents the complete scan scope.
+
+    - name: Prevent contradictory scan modes
+      ansible.builtin.assert:
+        that:
+          - not (
+              (client_name is defined and client_name | string | trim | length > 0)
+              and
+              (full_inventory_scan | default(false) | bool)
+            )
+        fail_msg: >-
+          Use either client_name OR full_inventory_scan=true, not both.
+
+    - name: Create temporary directories for this AWX job
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ scan_root }}/raw"
+        - "{{ scan_root }}/output"
+      changed_when: false
+
+    - name: Build uplink exclusion list from topology variables
+      ansible.builtin.copy:
+        dest: "{{ scan_root }}/uplinks.csv"
+        mode: "0644"
+        content: |
+          Switch,Interface
+          {% if effective_exclude_uplinks %}
+          {% for switch_name, interfaces in uplink_interfaces_map.items() %}
+          {% for interface in interfaces %}
+          {{ switch_name }},{{ interface }}
+          {% endfor %}
+          {% endfor %}
+          {% endif %}
+      changed_when: false
+
+    - name: Show scan safety settings
+      ansible.builtin.debug:
+        msg:
+          - "target_hosts={{ target_hosts }}"
+          - "client_name={{ client_name | default('ALL CLIENTS') }}"
+          - "full_inventory_scan={{ full_inventory_scan | default(false) | bool }}"
+          - "exclude_uplinks={{ effective_exclude_uplinks }}"
+
+- name: Collect Junos MAC and VLAN tables from selected switches
+  hosts: "{{ target_hosts | default('__NO_TARGET_SELECTED__') }}"
+  gather_facts: false
+  any_errors_fatal: true
+
+  vars:
+    ansible_connection: ansible.netcommon.netconf
+    ansible_network_os: junipernetworks.junos.junos
+    ansible_port: 830
+    ansible_command_timeout: 120
+    ansible_connect_timeout: 15
+    scan_id: "{{ tower_job_id | default(awx_job_id | default('manual')) }}"
+    scan_root: "/tmp/network_inventory_{{ scan_id }}"
+
+  tasks:
+    - name: Read ethernet switching table and VLAN table (read only)
+      junipernetworks.junos.junos_command:
+        commands:
+          - show ethernet-switching table
+          - show vlans
+        display: text
+      register: network_tables
+      changed_when: false
+
+    - name: Validate MAC table response
+      ansible.builtin.assert:
+        that:
+          - network_tables is defined
+          - network_tables.stdout is defined
+          - network_tables.stdout | length >= 1
+          - network_tables.stdout[0] | string | trim | length > 0
+        fail_msg: >-
+          No ethernet-switching-table output was returned by {{ inventory_hostname }}.
+          The job is stopped to avoid false NOT_FOUND_IN_SCOPE results.
+
+    - name: Store raw result for this switch and AWX job
+      ansible.builtin.copy:
+        content: "{{ network_tables | to_nice_json }}"
+        dest: "{{ scan_root }}/raw/{{ inventory_hostname }}.json"
+        mode: "0644"
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      changed_when: false
+
+- name: Compare network state, update seating CSV, and publish changes to GitHub
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  any_errors_fatal: true
+
+  vars_files:
+    - ../vars/git_publish.yml
+
+  vars:
+    scan_id: "{{ tower_job_id | default(awx_job_id | default('manual')) }}"
+    scan_root: "/tmp/network_inventory_{{ scan_id }}"
+    project_root: "{{ playbook_dir }}/.."
+    effective_update_seating: "{{ update_seating_table | default(true) | bool }}"
+    effective_publish_to_git: "{{ publish_seating_to_git | default(git_publish_enabled_default) | bool }}"
+    default_floor_template: "floor_33_import_template.csv"
+    effective_floor_template: "{{ floor_template | default(default_floor_template) | string | trim }}"
+    effective_seating_csv: >-
+      {{ seating_csv_path | default(project_root ~ '/baseline/' ~ effective_floor_template) }}
+    effective_seating_output: "{{ scan_root }}/output/{{ effective_floor_template }}"
+    effective_git_repo_url: "{{ git_repo_url | default(git_repo_url_default) }}"
+    effective_git_branch: "{{ git_branch | default(git_branch_default) }}"
+    effective_git_project_subdir: "{{ git_project_subdir | default(project_root | basename) }}"
+    effective_git_user_name: "{{ git_commit_user_name | default(git_commit_user_name_default) }}"
+    effective_git_user_email: "{{ git_commit_user_email | default(git_commit_user_email_default) }}"
+
+  tasks:
+    - name: Build comparator command
+      ansible.builtin.set_fact:
+        comparator_argv: >-
+          {{
+            [
+              'python3',
+              project_root ~ '/scripts/compare_inventory.py',
+              '--baseline', project_root ~ '/baseline/inventory.csv',
+              '--raw-dir', scan_root ~ '/raw',
+              '--uplinks', scan_root ~ '/uplinks.csv',
+              '--output', scan_root ~ '/output/current_inventory.csv',
+              '--duplicates-output', scan_root ~ '/output/source_duplicates.csv',
+              '--events-output', scan_root ~ '/output/events.csv',
+              '--summary-json', scan_root ~ '/output/summary.json',
+              '--target-hosts', target_hosts | string,
+              '--scan-scope', ('full' if (full_inventory_scan | default(false) | bool) else 'client'),
+              '--print-events'
+            ]
+            +
+            (
+              ['--client', client_name | string | trim]
+              if (client_name is defined and client_name | string | trim | length > 0)
+              else []
+            )
+          }}
+
+    - name: Compare current MAC locations with baseline inventory
+      ansible.builtin.command:
+        argv: "{{ comparator_argv }}"
+      register: comparison
+      changed_when: false
+
+    - name: Show inventory summary and detected movements in AWX job output
+      ansible.builtin.debug:
+        msg: "{{ comparison.stdout_lines }}"
+
+    - name: Read comparison summary
+      ansible.builtin.slurp:
+        src: "{{ scan_root }}/output/summary.json"
+      register: summary_file
+      changed_when: false
+
+    - name: Parse comparison summary
+      ansible.builtin.set_fact:
+        network_inventory_summary: "{{ summary_file.content | b64decode | from_json }}"
+
+    - name: Read movement report
+      ansible.builtin.slurp:
+        src: "{{ scan_root }}/output/events.csv"
+      register: events_file
+      changed_when: false
+
+    - name: Publish network scan artifacts
+      ansible.builtin.set_stats:
+        data:
+          network_inventory_summary: "{{ network_inventory_summary }}"
+          network_inventory_events_csv: "{{ events_file.content | b64decode }}"
+        per_host: false
+
+    - name: Validate floor template variable
+      ansible.builtin.assert:
+        that:
+          - effective_floor_template | length > 0
+          - effective_floor_template is match('^[A-Za-z0-9_.-]+\.csv$')
+        fail_msg: >-
+          floor_template must be a CSV filename located under baseline/, for example
+          floor_33_import_template.csv. Do not use .xlsx in this version.
+      when: effective_update_seating | bool
+
+    - name: Show selected floor template
+      ansible.builtin.debug:
+        msg:
+          - "floor_template={{ effective_floor_template }}"
+          - "seating_source={{ effective_seating_csv }}"
+          - "seating_output={{ effective_seating_output }}"
+      when: effective_update_seating | bool
+
+    - name: Verify floor seating CSV exists
+      ansible.builtin.stat:
+        path: "{{ effective_seating_csv }}"
+      register: seating_csv_stat
+      when: effective_update_seating | bool
+
+    - name: Stop when seating update is enabled but floor CSV is missing
+      ansible.builtin.assert:
+        that:
+          - seating_csv_stat.stat.exists
+          - seating_csv_stat.stat.isreg
+        fail_msg: >-
+          Seating update is enabled, but {{ effective_seating_csv }} does not exist.
+          Expected location: baseline/{{ effective_floor_template }}.
+      when: effective_update_seating | bool
+
+    - name: Update Agent Name and movement comments in floor seating CSV
+      ansible.builtin.command:
+        argv:
+          - python3
+          - "{{ project_root }}/scripts/update_seating_csv.py"
+          - --seating-csv
+          - "{{ effective_seating_csv }}"
+          - --events
+          - "{{ scan_root }}/output/events.csv"
+          - --output
+          - "{{ effective_seating_output }}"
+          - --report
+          - "{{ scan_root }}/output/seating_updates.csv"
+          - --summary-json
+          - "{{ scan_root }}/output/seating_summary.json"
+          - --job-id
+          - "{{ scan_id }}"
+          - --client
+          - "{{ client_name | default('') }}"
+      register: seating_update
+      changed_when: false
+      when: effective_update_seating | bool
+
+    - name: Show seating update results
+      ansible.builtin.debug:
+        msg: "{{ seating_update.stdout_lines }}"
+      when: effective_update_seating | bool
+
+    - name: Read seating update summary
+      ansible.builtin.slurp:
+        src: "{{ scan_root }}/output/seating_summary.json"
+      register: seating_summary_file
+      changed_when: false
+      when: effective_update_seating | bool
+
+    - name: Parse seating update summary
+      ansible.builtin.set_fact:
+        seating_update_summary: "{{ seating_summary_file.content | b64decode | from_json }}"
+      when: effective_update_seating | bool
+
+    - name: Read seating update report
+      ansible.builtin.slurp:
+        src: "{{ scan_root }}/output/seating_updates.csv"
+      register: seating_report_file
+      changed_when: false
+      when: effective_update_seating | bool
+
+    - name: Publish seating artifacts
+      ansible.builtin.set_stats:
+        data:
+          network_inventory_seating_summary: "{{ seating_update_summary }}"
+          network_inventory_seating_updates_csv: "{{ seating_report_file.content | b64decode }}"
+          network_inventory_seating_output_path: "{{ effective_seating_output }}"
+        per_host: false
+      when: effective_update_seating | bool
+
+    - name: Validate GitHub publication settings only when there are seating changes
+      ansible.builtin.assert:
+        that:
+          - effective_git_repo_url | string | trim | length > 0
+          - effective_git_branch | string | trim | length > 0
+          - effective_git_project_subdir | string | trim | length > 0
+          - lookup('env', 'GIT_TOKEN') | string | trim | length > 0
+        fail_msg: >-
+          Seat changes were detected but GitHub publication cannot continue.
+          Configure git_repo_url/git_branch if needed and attach an AWX credential
+          that injects GIT_TOKEN (and optionally GIT_USERNAME) into the job environment.
+      when:
+        - effective_update_seating | bool
+        - effective_publish_to_git | bool
+        - seating_update_summary.updated | int > 0
+
+    - name: Commit and push updated floor seating CSV to GitHub
+      ansible.builtin.command:
+        argv:
+          - python3
+          - "{{ project_root }}/scripts/publish_csv_to_git.py"
+          - --repo-url
+          - "{{ effective_git_repo_url }}"
+          - --branch
+          - "{{ effective_git_branch }}"
+          - --project-subdir
+          - "{{ effective_git_project_subdir }}"
+          - --source-file
+          - "{{ effective_seating_output }}"
+          - --workspace
+          - "{{ scan_root }}/git_publish"
+          - --destination-name
+          - "{{ effective_floor_template }}"
+          - --commit-message
+          - "AWX: update {{ effective_floor_template }} after job {{ scan_id }}"
+          - --git-user-name
+          - "{{ effective_git_user_name }}"
+          - --git-user-email
+          - "{{ effective_git_user_email }}"
+      register: git_publish_result
+      changed_when: true
+      when:
+        - effective_update_seating | bool
+        - effective_publish_to_git | bool
+        - seating_update_summary.updated | int > 0
+
+    - name: Show GitHub publication result
+      ansible.builtin.debug:
+        msg: "{{ git_publish_result.stdout_lines }}"
+      when:
+        - effective_update_seating | bool
+        - effective_publish_to_git | bool
+        - seating_update_summary.updated | int > 0
+
+    - name: Report when no GitHub commit was necessary
+      ansible.builtin.debug:
+        msg: >-
+          No seat movement was applied to {{ effective_floor_template }};
+          GitHub was not modified.
+      when:
+        - effective_update_seating | bool
+        - seating_update_summary.updated | int == 0
