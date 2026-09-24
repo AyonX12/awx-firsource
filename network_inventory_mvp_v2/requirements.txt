@@ -1,0 +1,5 @@
+# Required by the existing Junos NETCONF collection in custom EE builds.
+ncclient>=0.6.15
+
+# Required only for the optional Excel seating-map update step.
+openpyxl>=3.1.0

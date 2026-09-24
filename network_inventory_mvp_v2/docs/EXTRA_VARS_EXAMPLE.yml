@@ -1,0 +1,8 @@
+target_hosts: "asw11:asw12"
+client_name: "Reprise"
+exclude_uplinks: true
+update_seating_table: true
+# seating_sheet: "Seats"
+# Optional override. Default input is baseline/floor_33_import_template.xlsx
+# seating_workbook_path: "/persistent/input/floor_33_import_template.xlsx"
+# seating_output_path: "/persistent/output/floor_33_import_template_updated.xlsx"

@@ -1,0 +1,298 @@
+---
+- name: Validate AWX input and prepare scan workspace
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  any_errors_fatal: true
+
+  vars_files:
+    - ../vars/uplinks.yml
+
+  vars:
+    scan_id: "{{ tower_job_id | default(awx_job_id | default('manual')) }}"
+    scan_root: "/tmp/network_inventory_{{ scan_id }}"
+    effective_exclude_uplinks: "{{ exclude_uplinks | default(exclude_uplinks_default) | bool }}"
+
+  tasks:
+    - name: Require target_hosts so the playbook never scans all devices by accident
+      ansible.builtin.assert:
+        that:
+          - target_hosts is defined
+          - target_hosts | string | trim | length > 0
+        fail_msg: >-
+          target_hosts is required. Examples:
+          target_hosts="asw20:asw21" or target_hosts="reprise_candidate_switches".
+
+    - name: Require either a client filter or an explicit full inventory scan
+      ansible.builtin.assert:
+        that:
+          - >-
+            (client_name is defined and client_name | string | trim | length > 0)
+            or
+            (full_inventory_scan | default(false) | bool)
+        fail_msg: >-
+          Provide client_name for a client-scoped search, or set
+          full_inventory_scan=true when target_hosts contains the complete switch
+          scope to be inventoried.
+
+    - name: Prevent contradictory scan modes
+      ansible.builtin.assert:
+        that:
+          - not (
+              (client_name is defined and client_name | string | trim | length > 0)
+              and
+              (full_inventory_scan | default(false) | bool)
+            )
+        fail_msg: >-
+          Use either client_name for a client-scoped search OR
+          full_inventory_scan=true, not both in the same job.
+
+    - name: Create temporary directories for this AWX job
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ scan_root }}/raw"
+        - "{{ scan_root }}/output"
+      changed_when: false
+
+    - name: Build uplink exclusion list from topology variables
+      ansible.builtin.copy:
+        dest: "{{ scan_root }}/uplinks.csv"
+        mode: "0644"
+        content: |
+          Switch,Interface
+          {% if effective_exclude_uplinks %}
+          {% for switch_name, interfaces in uplink_interfaces_map.items() %}
+          {% for interface in interfaces %}
+          {{ switch_name }},{{ interface }}
+          {% endfor %}
+          {% endfor %}
+          {% endif %}
+      changed_when: false
+
+    - name: Show scan safety settings
+      ansible.builtin.debug:
+        msg:
+          - "target_hosts={{ target_hosts }}"
+          - "client_name={{ client_name | default('ALL CLIENTS') }}"
+          - "full_inventory_scan={{ full_inventory_scan | default(false) | bool }}"
+          - "exclude_uplinks={{ effective_exclude_uplinks }}"
+
+- name: Collect Junos MAC and VLAN tables from selected switches
+  hosts: "{{ target_hosts | default('__NO_TARGET_SELECTED__') }}"
+  gather_facts: false
+  any_errors_fatal: true
+
+  vars:
+    ansible_connection: ansible.netcommon.netconf
+    ansible_network_os: junipernetworks.junos.junos
+    ansible_port: 830
+    ansible_command_timeout: 120
+    ansible_connect_timeout: 15
+    scan_id: "{{ tower_job_id | default(awx_job_id | default('manual')) }}"
+    scan_root: "/tmp/network_inventory_{{ scan_id }}"
+
+  tasks:
+    - name: Read ethernet switching table and VLAN table (read only)
+      junipernetworks.junos.junos_command:
+        commands:
+          - show ethernet-switching table
+          - show vlans
+        display: text
+      register: network_tables
+      changed_when: false
+
+    - name: Validate MAC table response
+      ansible.builtin.assert:
+        that:
+          - network_tables is defined
+          - network_tables.stdout is defined
+          - network_tables.stdout | length >= 1
+          - network_tables.stdout[0] | string | trim | length > 0
+        fail_msg: >-
+          No ethernet-switching-table output was returned by {{ inventory_hostname }}.
+          The job is stopped to avoid false NOT_FOUND_IN_SCOPE results.
+
+    - name: Store raw result for this switch and AWX job
+      ansible.builtin.copy:
+        content: "{{ network_tables | to_nice_json }}"
+        dest: "{{ scan_root }}/raw/{{ inventory_hostname }}.json"
+        mode: "0644"
+      delegate_to: localhost
+      vars:
+        ansible_connection: local
+      changed_when: false
+
+- name: Compare live switch state with fixed-PC baseline
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  any_errors_fatal: true
+
+  vars:
+    scan_id: "{{ tower_job_id | default(awx_job_id | default('manual')) }}"
+    scan_root: "/tmp/network_inventory_{{ scan_id }}"
+    project_root: "{{ playbook_dir }}/.."
+
+  tasks:
+    - name: Build comparator command
+      ansible.builtin.set_fact:
+        comparator_argv: >-
+          {{
+            [
+              'python3',
+              project_root ~ '/scripts/compare_inventory.py',
+              '--baseline', project_root ~ '/baseline/inventory.csv',
+              '--raw-dir', scan_root ~ '/raw',
+              '--uplinks', scan_root ~ '/uplinks.csv',
+              '--output', scan_root ~ '/output/current_inventory.csv',
+              '--duplicates-output', scan_root ~ '/output/source_duplicates.csv',
+              '--events-output', scan_root ~ '/output/events.csv',
+              '--summary-json', scan_root ~ '/output/summary.json',
+              '--target-hosts', target_hosts | string,
+              '--scan-scope',
+                ('full' if (full_inventory_scan | default(false) | bool) else 'client'),
+              '--print-events'
+            ]
+            +
+            (
+              ['--client', client_name | string | trim]
+              if (client_name is defined and client_name | string | trim | length > 0)
+              else []
+            )
+          }}
+
+    - name: Compare current MAC locations with baseline inventory
+      ansible.builtin.command:
+        argv: "{{ comparator_argv }}"
+      register: comparison
+      changed_when: false
+
+    - name: Show inventory summary and detected movements in AWX job output
+      ansible.builtin.debug:
+        msg: "{{ comparison.stdout_lines }}"
+
+    - name: Read summary generated by comparator
+      ansible.builtin.slurp:
+        src: "{{ scan_root }}/output/summary.json"
+      register: summary_file
+      changed_when: false
+
+    - name: Parse summary
+      ansible.builtin.set_fact:
+        network_inventory_summary: "{{ summary_file.content | b64decode | from_json }}"
+
+    - name: Publish summary as AWX job artifact
+      ansible.builtin.set_stats:
+        data:
+          network_inventory_summary: "{{ network_inventory_summary }}"
+        per_host: false
+
+    - name: Read movement report
+      ansible.builtin.slurp:
+        src: "{{ scan_root }}/output/events.csv"
+      register: events_file
+      changed_when: false
+
+    - name: Publish movement CSV as AWX job artifact
+      ansible.builtin.set_stats:
+        data:
+          network_inventory_events_csv: "{{ events_file.content | b64decode }}"
+        per_host: false
+
+    - name: Define seating-map paths and options
+      ansible.builtin.set_fact:
+        effective_update_seating: "{{ update_seating_table | default(false) | bool }}"
+        effective_seating_workbook: >-
+          {{ seating_workbook_path | default(project_root ~ '/baseline/floor_33_import_template.xlsx') }}
+        effective_seating_output: >-
+          {{ seating_output_path | default(scan_root ~ '/output/floor_33_import_template_updated.xlsx') }}
+        effective_seating_sheet: "{{ seating_sheet | default('') }}"
+
+    - name: Check Excel dependency in the AWX Execution Environment
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -c
+          - import openpyxl; print(openpyxl.__version__)
+      register: openpyxl_check
+      changed_when: false
+      when: effective_update_seating | bool
+
+    - name: Verify seating workbook exists
+      ansible.builtin.stat:
+        path: "{{ effective_seating_workbook }}"
+      register: seating_workbook_stat
+      when: effective_update_seating | bool
+
+    - name: Stop if seating update was requested but the workbook is missing
+      ansible.builtin.assert:
+        that:
+          - seating_workbook_stat.stat.exists
+          - seating_workbook_stat.stat.isreg
+        fail_msg: >-
+          Seating update is enabled but the workbook was not found at
+          {{ effective_seating_workbook }}. Upload the workbook or set
+          seating_workbook_path to a readable .xlsx file.
+      when: effective_update_seating | bool
+
+    - name: Build seating updater command
+      ansible.builtin.set_fact:
+        seating_updater_argv: >-
+          {{
+            [
+              'python3',
+              project_root ~ '/scripts/update_seating.py',
+              '--workbook', effective_seating_workbook,
+              '--events', scan_root ~ '/output/events.csv',
+              '--output', effective_seating_output,
+              '--report', scan_root ~ '/output/seating_updates.csv',
+              '--summary-json', scan_root ~ '/output/seating_summary.json',
+              '--job-id', scan_id | string,
+              '--client', client_name | default('') | string
+            ]
+            +
+            (
+              ['--sheet', effective_seating_sheet]
+              if effective_seating_sheet | string | trim | length > 0
+              else []
+            )
+          }}
+      when: effective_update_seating | bool
+
+    - name: Update Agent Name in seating workbook for moved users
+      ansible.builtin.command:
+        argv: "{{ seating_updater_argv }}"
+      register: seating_update
+      changed_when: false
+      when: effective_update_seating | bool
+
+    - name: Show seating-table update result
+      ansible.builtin.debug:
+        msg: "{{ seating_update.stdout_lines }}"
+      when: effective_update_seating | bool
+
+    - name: Read seating update report
+      ansible.builtin.slurp:
+        src: "{{ scan_root }}/output/seating_updates.csv"
+      register: seating_report_file
+      changed_when: false
+      when: effective_update_seating | bool
+
+    - name: Read seating update summary
+      ansible.builtin.slurp:
+        src: "{{ scan_root }}/output/seating_summary.json"
+      register: seating_summary_file
+      changed_when: false
+      when: effective_update_seating | bool
+
+    - name: Publish seating update details as AWX job artifacts
+      ansible.builtin.set_stats:
+        data:
+          network_inventory_seating_updates_csv: "{{ seating_report_file.content | b64decode }}"
+          network_inventory_seating_summary: "{{ seating_summary_file.content | b64decode | from_json }}"
+          network_inventory_seating_output_path: "{{ effective_seating_output }}"
+        per_host: false
+      when: effective_update_seating | bool

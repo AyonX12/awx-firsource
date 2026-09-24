@@ -1,0 +1,2 @@
+floor,client,everest_id,role,mac,baseline_switch,baseline_interface,baseline_vlan,baseline_ip,status,current_switch,current_interface,current_vlan,raw_sightings
+33rd,Reprise,ven987knc95,Agent,2c:58:b9:f0:05:c5,ASW12,ge-0/0/4,132,10.58.132.10,SWITCH_MOVED,ASW11,ge-0/0/11,132,
