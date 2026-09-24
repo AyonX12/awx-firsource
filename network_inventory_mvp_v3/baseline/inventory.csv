@@ -1,2 +1,5 @@
-Floor,Switch,Switch Port number,Desk Details,Client,Everest Id,Agent/Support/Empty,Port Status,WS Status,MAC Address,VLAN,IPv4 Address
-33rd,NY4824470090(ASW20),ge-0/0/4,PP0-02,Reprise,ven987knc95,Agent,Active,Occupied,2c:58:b9:f0:05:c5,132,
+Floor	Switch	Switch Port number	Desk Details	Client	Everest Id	Agent/Support/Empty	Port Status	WS Status	MAC Address	VLAN	IPv4 Address
+	NY4824470090(ASW20)	ge-0/0/4		Reprise	ven987knc95			Occupied	2c:58:b9:f0:05:c5	2	
+	NY4823305446(ASW21)	ge-0/0/30		Reprise	gm747670			Occupied	2c:58:b9:f0:06:12	2	
+	NY4823305446(ASW21)	ge-0/0/38		Reprise	aj751635			Occupied	6c:0b:5e:66:24:da	2	
+	NY4823305446(ASW21)	ge-0/0/5		Upstart	jz739609			Occupied	6c:0b:5e:66:24:da	2	
