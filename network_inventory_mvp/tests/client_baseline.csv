@@ -1,4 +1,0 @@
-Floor,Switch,Switch Port number,Desk Details,Client,Everest Id,Agent/Support/Empty,Port Status,WS Status,MAC Address,VLAN,IPv4 Address
-34th,FSMEXICOASW20,ge-0/0/4,P20-04,Reprise,ven987knc95,Agent,Active,Occupied,2c:58:b9:f0:05:c5,132,10.58.132.10
-34th,FSMEXICOASW20,ge-0/0/5,P20-05,Reprise,aa:bb:cc:dd:ee:01,Agent,Active,Occupied,aa:bb:cc:dd:ee:01,132,10.58.132.11
-34th,FSMEXICOASW20,ge-0/0/6,P20-06,OMF,omf001,Agent,Active,Occupied,aa:bb:cc:dd:ee:02,121,10.58.121.11
