@@ -1,4 +1,0 @@
-Floor,Switch,Switch Port number,Desk Details,Client,Everest Id,Agent/Support/Empty,Port Status,WS Status,MAC Address,VLAN,IPv4 Address
-34th,NY4823305571(ASW01),ge-0/0/0,P1-01,Reprise,sf752038,Agent,Active,Occupied,d0:46:0c:97:6b:dd,121,10.58.121.70
-34th,NY4823305571(ASW01),ge-0/0/2,P1-02,Reprise,ac753328,Agent,Active,Occupied,d0:46:0c:92:61:5e,121,10.58.121.12
-34th,FSMEXICOASW01,ge-0/0/10,P1-06,OMF,is754680,Agent,Active,Occupied,e0:70:ea:ab:f8:01,121,10.58.121.36

@@ -1,6 +1,0 @@
-{
-  "stdout": [
-    "Ethernet switching table : 2 entries\nVLAN132  2c:58:b9:f0:05:c5  D  -  ge-0/0/30.0\nVLAN110  aa:bb:cc:dd:ee:02  D  -  ge-0/2/0.0\n",
-    "Routing instance  VLAN name  Tag\ndefault-switch VLAN132 132\ndefault-switch VLAN110 110\n"
-  ]
-}

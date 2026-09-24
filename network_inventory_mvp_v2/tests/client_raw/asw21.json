@@ -1,6 +1,0 @@
-{
-  "stdout": [
-    "Reprise 2c:58:b9:f0:05:c5 Learn 0 ge-0/0/30.0\nReprise aa:bb:cc:dd:ee:01 Learn 0 ge-0/0/31.0\nOMF aa:bb:cc:dd:ee:02 Learn 0 ge-0/0/32.0",
-    "Reprise 132\nOMF 121"
-  ]
-}
