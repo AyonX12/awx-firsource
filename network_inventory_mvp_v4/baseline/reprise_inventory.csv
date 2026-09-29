@@ -1,0 +1,62 @@
+﻿Floor,Switch,Switch Port number,Desk Details,Client,Everest Id,Agent/Support/Empty,Port Status,WS Status,MAC Address,VLAN,IPv4 Address
+34th,NY4823305571(ASW01),ge-0/0/0,P1-01,Reprise,ds756753,Agent,Active,Occupied,d0:46:0c:97:6b:dd,121,10.58.121.70
+34th,NY4823305571(ASW01),ge-0/0/2,P1-02,Reprise,ac753328,Agent,Active,Occupied,d0:46:0c:92:61:5e,121,10.58.121.12
+34th,NY4823305571(ASW01),ge-0/0/9,P1-29,Reprise,jz750669,Agent,Active,Occupied,d0:46:0c:92:63:50,121,10.58.121.30
+34th,NY4823305571(ASW01),ge-0/0/11,P1-30,Reprise,or753361,Agent,Active,Occupied,d0:46:0c:92:64:49,121,10.58.121.44
+34th,NY4823305571(ASW01),ge-0/0/14,P1-08,Reprise,av754678,Agent,Active,Occupied,d0:46:0c:92:62:a4,121,10.58.121.14
+34th,NY4823305571(ASW01),ge-0/0/16,P1-09,Reprise,mr756756,Agent,Active,Occupied,d0:46:0c:97:6c:05,121,10.58.121.67
+34th,NY4823305571(ASW01),ge-0/0/17,P1-33,Reprise,jl745991,Agent,Active,Occupied,d0:46:0c:91:4f:35,121,10.58.121.18
+34th,NY4823305571(ASW01),ge-0/0/22,P1-12,Reprise,jh753633,Agent,Active,Occupied,d0:46:0c:97:6d:63,121,10.58.121.56
+34th,NY4823305571(ASW01),ge-0/0/23,P1-36,Reprise,ac749927,Agent,Active,Occupied,d0:46:0c:88:da:72,121,10.58.121.75
+34th,NY4823305571(ASW01),ge-0/0/25,P1-37,Reprise,dr753875,Agent,Active,Occupied,d0:46:0c:91:4b:7b,121,10.58.121.49
+34th,NY4823305571(ASW01),ge-0/0/27,P1-38,Reprise,av751278,Agent,Active,Occupied,d0:46:0c:92:9c:54,121,10.58.121.62
+34th,NY4823305571(ASW01),ge-0/0/29,P1-39,Reprise,lc754682,Agent,Active,Occupied,d0:46:0c:88:d9:cb,121,10.58.121.19
+34th,NY4823305571(ASW01),ge-0/0/30,P1-16,Reprise,so756785,Agent,Active,Occupied,d0:46:0c:95:5f:0a,121,10.58.121.29
+34th,NY4823305571(ASW01),ge-0/0/31,P1-40,Reprise,iv746719,Agent,Active,Occupied,d0:46:0c:90:f9:d2,121,10.58.121.24
+34th,NY4823305571(ASW01),ge-0/0/32,P1-17,Reprise,lg753337,Agent,Active,Occupied,d0:46:0c:91:4b:ac,121,10.58.121.25
+34th,NY4823305571(ASW01),ge-0/0/34,P1-18,Reprise,jh752078,Ops Support,Active,Occupied,d0:46:0c:92:63:e1,121,10.58.121.17
+34th,NY4823305571(ASW01),ge-0/0/35,P1-42,Reprise,dc756759,Agent,Active,Occupied,d0:46:0c:91:4c:b9,121,10.58.121.65
+34th,NY4823305571(ASW01),ge-0/0/39,P1-44,Reprise,ac753348,Agent,Active,Occupied,d0:46:0c:92:61:2c,121,10.58.121.27
+34th,NY4823305571(ASW01),ge-0/0/41,P1-45,Reprise,gp747865,Agent,Active,Occupied,2c:58:b9:ef:76:b8,121,10.58.121.55
+34th,NX3622530165(ASW02),ge-0/0/8,P2-27,Reprise,ot756619,Ops Support,Active,Occupied,d0:46:0c:98:0a:cb,121,10.58.121.42
+34th,NX3622530165(ASW02),ge-0/0/6,P2-04,Reprise,gg756787,Agent,Active,Occupied,d0:46:0c:91:4e:6b,121,10.58.121.72
+34th,NX3622530165(ASW02),ge-0/0/7,P2-28,Reprise,em753557,Agent,Active,Occupied,d0:46:0c:88:f6:04,121,10.58.121.45
+34th,NX3622530165(ASW02),ge-0/0/7,P2-25,Reprise,em753557,Agent,Active,Occupied,d0:46:0c:88:f6:04,121,10.58.121.45
+34th,NX3622530165(ASW02),ge-0/0/8,P2005,Reprise,el741642,Ops Support,Active,Occupied,d0:ad:08:19:5d:0c,121,10.58.121.69
+34th,NX3622530165(ASW02),ge-0/0/9,P2-29,Reprise,dm751790,Agent,Active,Occupied,d0:46:0c:98:0c:2c,121,10.58.121.46
+34th,NX3622530165(ASW02),ge-0/0/11,P2-30,Reprise,fd750687,Ops Support,Active,Occupied,6c:0b:5e:73:b2:83,121,10.58.121.11
+34th,NX3622530165(ASW02),ge-0/0/12,P2-07,Reprise,db751999,Agent,Active,Occupied,d0:46:0c:90:fa:36,121,10.58.121.38
+34th,NX3622530165(ASW02),ge-0/0/13,P2-31,Reprise,gc756600,Agent,Active,Occupied,d0:46:0c:97:6d:e4,121,10.58.121.39
+34th,NX3622530165(ASW02),ge-0/0/15,P2-32,Reprise,cm756601<br> rd749447<br> to753438,Agent,Active,Occupied,"d0:46:0c:88:dc:46, d0:46:0c:98:0a:c8, d0:46:0c:88:d9:2f",121,"10.58.121.20,10.58.121.28,10.58.121.23"
+34th,NX3622530165(ASW02),ge-0/0/17,P2-33,Reprise,iv750681,Agent,Active,Occupied,d0:46:0c:92:62:06,121,10.58.121.54
+34th,NX3622530165(ASW02),ge-0/0/18,P2-10,Reprise,tj748366,Ops Support,Active,Occupied,d0:ad:08:31:74:9f,,
+34th,NX3622530165(ASW02),ge-0/0/23,P2-36,Reprise,gm754804,Agent,Active,Occupied,2c:58:b9:f0:05:0f,121,10.58.121.26
+34th,NX3622530165(ASW02),ge-0/0/25,P2-37,Reprise,mb754805,Agent,Active,Occupied,d0:46:0c:97:6b:de,121,10.58.121.35
+34th,NX3622530165(ASW02),ge-0/0/26,P2-14,Reprise,ip756602,Agent,Active,Occupied,d0:46:0c:91:4d:a6,121,10.58.121.48
+34th,NX3622530165(ASW02),ge-0/0/27,P2-38,Reprise,sm755533,Agent,Active,Occupied,d0:46:0c:98:0b:0c,121,10.58.121.32
+34th,NY4823300925(ASW03),ge-0/0/3,P1-14,Reprise,LC747658,Agent,Active,Occupied,d0:46:0c:91:4b:de,121,10.58.121.61
+34th,NY4823301482(ASW05),ge-0/0/4,P5-03,Reprise,NOT FOUND,Agent,Active,Occupied,d0:46:0c:88:f7:7e,121,10.58.121.57
+34th,NY4823301482(ASW05),ge-0/0/6,P5-04,Reprise,cr750344,Agent,Active,Occupied,d0:46:0c:98:0b:61,121,10.58.121.66
+34th,NY4823301482(ASW05),ge-0/0/7,P5-28,Reprise,rr756755,Agent,Active,Occupied,d0:46:0c:91:4b:bc,121,10.58.121.59
+34th,NY4823301482(ASW05),ge-0/0/19,P5-34,Reprise,kc751038,Agent,Active,Occupied,4c:56:df:42:ec:a9,121,10.113.97.204
+34th,NY4823305327(ASW08),ge-0/0/1,P5-29,Reprise,sg752206,Agent,Active,Occupied,d0:46:0c:8a:21:d0,121,10.58.121.41
+34th,NY4823305327(ASW08),ge-0/0/3,P5-27,Reprise,ar745934,Ops Support,Active,Occupied,30:13:8b:7a:11:27,131,10.113.96.245
+34th,NY4823305327(ASW08),ge-0/0/7,P2-25,Reprise,ji753584,Agent,Active,Occupied,d0:46:0c:88:f7:86,121,10.58.121.53
+34th,NY4823305327(ASW08),ge-0/0/13,P2-03,Reprise,lp751752,Agent,Active,Occupied,d0:46:0c:97:6b:d6,121,10.113.96.113
+34th,NY4823305327(ASW08),ge-0/0/18,P1-11,Reprise,dc754664,Agent,Active,Occupied,d0:46:0c:95:5c:7f,121,10.58.121.60
+34th,NY4823305327(ASW08),ge-0/0/21,P1-11,Reprise,gl749967,Ops Support,Active,Occupied,30:13:8b:7a:10:e7,131,10.113.97.87
+34th,FSMEXICOASW02,ge-0/0/0,P2-01,Reprise,,Agent,Active,Occupied,d0:46:0c:97:6b:dd,121,10.58.121.70
+34th,FSMEXICOASW02,ge-0/0/2,P2-12,Reprise,NOT FOUND,Ops Support,Active,Occupied,4c:56:df:41:f8:be,131,10.58.131.11
+34th,FSMEXICOASW03,ge-0/0/2,P3-02,Reprise,not found,Agent,Active,Occupied,5c:28:86:21:08:d5,,
+34th,FSMEXICOASW01,ge-0/0/20,P8-2,Reprise,cs756758,Agent,Active,Occupied,d0:46:0c:90:f7:1a,121,10.58.121.63
+34th,FSMEXICOASW01,ge-0/0/24,P1-13,Reprise,nr747249,Ops Support,Active,Occupied,30:13:8b:79:01:5d,131,10.58.128.16
+34th,FSMEXICOASW01,ge-0/0/28,P1-15,Reprise,jh756757,Agent,Active,Occupied,d0:46:0c:90:fc:cf,121,10.58.121.34
+34th,FSMEXICOASW02,ge-0/0/3,P2-26,Reprise,am744069,Agent,Active,Occupied,d0:46:0c:90:f6:0c,121,10.58.121.33
+34th,FSMEXICOASW03,ge-0/0/37,P3-43,Reprise,jg747088,Agent,Active,Occupied,30:13:8b:79:01:1b,121,10.113.97.166
+34th,FSMEXICOASW05,ge-0/0/13,P5-31,Reprise,jc749880,Agent,Active,Occupied,d0:46:0c:88:db:cc,121,10.58.121.47
+34th,FSMEXICOASW08,ge-0/0/35,P1-28,Reprise,sysadmin,Agent,Active,Occupied,64:4e:d7:9e:65:22,121,10.113.97.58
+34th,asw05,ge-0/0/18,P5-34,Reprise,ap751253,Agent,Active,Occupied,6c:0b:5e:66:24:8d,122,10.113.96.12
+34th,NY4823305571(ASW01),ge-0/0/18,P1-06,Reprise,ap751253,Agent,Active,Occupied,6c:0b:5e:66:24:8d,121,
+34th,NX3622530165(ASW02),ge-0/0/11,P2-34,Reprise,fd750687,Agent,Active,Occupied,6c:0b:5e:73:b2:83,121,10.58.121.11
+34th,ASW05,ge-0/0/10,P5-06,Reprise,,Ops Support,Active,Occupied,d0:ad:08:19:5d:0c,121,10.58.121.69
+34th,asw02,ge-0/0/14,P2-08,Reprise,,Agent,Active,Occupied,d0:46:0c:98:0a:cb,121,10.58.121.42
